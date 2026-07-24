@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MediPoint</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<!-- Simple nav to switch between the three views that used to be separate pages -->
+<nav class="app-nav">
+    <button type="button" data-target="idLoginPage" class="active" onclick="showPage('idLoginPage')">ID Login</button>
+    <button type="button" data-target="qrLoginPage" onclick="showPage('qrLoginPage')">QR Login</button>
+    <button type="button" data-target="signupPage" onclick="showPage('signupPage')">Create Account</button>
+</nav>
+
+<!-- ==================================================================
+     ID LOGIN VIEW 
+     ================================================================== -->
+<section id="idLoginPage" class="page-view">
+
+    <img src="../../images/MediPointLogo.png" alt="MediPoint Logo" class="logo">
+
+    <main class="card">
+
+        <div class="avatar">
+            <img src="../../images/studenticon.png" alt="User Icon">
+        </div>
+
+        <h1>Welcome to <span>MediPoint</span></h1>
+        <p class="subtitle">Enter your full name and ID number to continue</p>
+
+        <div class="form-group">
+            <label for="fullName2">Full Name</label>
+            <input type="text" id="fullName2" autocomplete="off">
+        </div>
+
+        <div class="form-group">
+            <label for="idNumber">Student Number / Personnel ID</label>
+            <input type="password" id="idNumber" autocomplete="off">
+        </div>
+
+        <p class="note">Students: use your Student Number. Personnel: use your Employee/ID Number.</p>
+
+        <button class="continue-btn" type="button" onclick="continueLogin()">Continue</button>
+
+        <p class="signup-text">New to MediPoint?</p>
+        <a class="signup-link" href="?view=signup" onclick="showPage('signupPage'); return false;">Create an account</a>
+
+    </main>
+
+</section>
+
+<!-- ==================================================================
+     QR LOGIN VIEW 
+     ================================================================== -->
+<section id="qrLoginPage" class="page-view hidden">
+
+    <img src="../../images/MediPointLogo.png" class="logo" alt="MediPoint Logo">
+
+    <input type="text" id="qrInput" autocomplete="off">
+
+    <main class="card">
+
+        <div class="avatar">
+            <img src="../../images/studenticon.png" alt="User Icon">
+        </div>
+
+        <h1>Welcome to <span>MediPoint</span></h1>
+
+        <p class="subtitle">Scan your QR code using the MediPoint scanner</p>
+
+        <div class="form-group">
+
+            <label for="qrInput">QR Code</label>
+
+            <div class="qr-container">
+                <img src="../../images/qricon.png" alt="QR Scanner Icon">
+
+                <p class="scan-text" id="scanText">Ready to Scan</p>
+                <p class="scan-subtext" id="scanSubtext">Place your QR code in front of the scanner</p>
+            </div>
+
+        </div>
+
+        <p class="status-message" id="statusMessage" aria-live="polite"></p>
+
+        <p class="signup-text">New to MediPoint?</p>
+
+        <a class="signup-link" href="?view=signup" onclick="showPage('signupPage'); return false;">Create an account</a>
+
+    </main>
+
+</section>
+
+<!-- ==================================================================
+     SIGN UP VIEW 
+     ================================================================== -->
+<section id="signupPage" class="page-view hidden">
+
+    <img src="../../images/MediPointLogo.png" class="logo" alt="MediPoint Logo">
+
+    <div class="wrapper">
+
+        <section class="card form-card">
+            <h1>Create Account</h1>
+
+            <div class="role-container">
+                <button type="button" class="role-card active" data-role="student">
+                    <div class="icon-circle">
+                        <img src="../../images/studenticon.png" alt="Student Icon">
+                    </div>
+                    <h3>Student</h3>
+                </button>
+
+                <button type="button" class="role-card" data-role="personnel">
+                    <div class="icon-circle">
+                        <img src="../../images/clinicstafficon.png" alt="Personnel Icon">
+                    </div>
+                    <h3>Personnel</h3>
+                </button>
+            </div>
+
+            <div class="form-group">
+                <label for="fullName">Name *</label>
+                <input type="text" id="fullName" required>
+            </div>
+
+            <div class="form-group">
+                <label for="birthday">Birthday *</label>
+                <input type="date" id="birthday" required>
+            </div>
+
+            <div class="form-group">
+                <label for="gender">Gender *</label>
+                <select id="gender" required>
+                    <option value="" selected disabled>Select your Gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="programDepartment" id="programDepartmentLabel">Program *</label>
+                <select id="programDepartment" required>
+                    <option value="" selected disabled>Select your Program</option>
+                    <option value="BS Computer Engineering">BS Computer Engineering</option>
+                    <option value="BS Civil Engineering">BS Civil Engineering</option>
+                    <option value="BS Electrical Engineering">BS Electrical Engineering</option>
+                    <option value="BS Electronics Engineering">BS Electronics Engineering</option>
+                    <option value="BS Mechanical Engineering">BS Mechanical Engineering</option>
+                    <option value="BS Information Technology">BS Information Technology</option>
+                    <option value="BS Information Systems">BS Information Systems</option>
+                    <option value="BS Computing Science">BS Computing Science</option>
+                    <option value="BS Criminology">BS Criminology</option>
+                    <option value="BS Environmental Science">BS Environmental Science</option>
+                    <option value="BS Midwifery">BS Midwifery</option>
+                    <option value="BS Nursing">BS Nursing</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="userId" id="userIdLabel">Student Number *</label>
+                <input type="text" id="userId" required>
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email Address *</label>
+                <input type="email" id="email" required>
+            </div>
+
+            <button class="generate-btn" type="button" onclick="generateQR()">Generate QR Code</button>
+
+            <p class="login-text">Already have account?</p>
+            <a class="login-link" href="login-landing.html">Back to Login</a>
+        </section>
+
+        <section class="card qr-card">
+            <h2>Your QR Code</h2>
+
+            <p class="qr-note">
+                Use this QR Code for your next session with the kiosk.
+                ID login verifies the full name and ID number registered on this device.
+            </p>
+
+            <div class="qr-box" id="qrBox">
+                <div class="qr-empty">QR code will appear here after generation</div>
+            </div>
+
+            <p class="student-role hidden" id="displayRole"></p>
+            <p class="student-name hidden" id="displayName"></p>
+            <p class="student-id hidden" id="displayId"></p>
+        </section>
+
+    </div>
+
+</section>
+
+<script src="medipoint-config.js"></script>
+<script src="../shared.js"></script>
+<script src="kiosk-api.js"></script>
+<script src="qrcode.min.js"></script>
+<script src="script.js"></script>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const params = new URLSearchParams(window.location.search);
+    const view = params.get('view');
+
+    if (view === 'qr') {
+      showPage('qrLoginPage');
+    } else if (view === 'signup') {
+      showPage('signupPage');
+    } else {
+      showPage('idLoginPage');
+    }
+  });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,28 @@
+# MediPoint Supabase local/dev configuration
+# Docs: https://supabase.com/docs/guides/cli/config
+
+project_id = "medipoint"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+
+[functions.kiosk-qr-login]
+verify_jwt = false
+entrypoint = "./functions/kiosk-qr-login/index.ts"
+
+[functions.doctor-data]
+verify_jwt = false
+entrypoint = "./functions/doctor-data/index.ts"

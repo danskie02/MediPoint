@@ -1,0 +1,615 @@
+/* ==========================================================================
+   MediPoint — combined stylesheet
+   Shared base + per-page (scoped) styles for:
+     #signupPage   (Create Account)
+     #idLoginPage  (ID Login)
+     #qrLoginPage  (QR Login)
+   ========================================================================== *//* ---------- Reset & shared base ---------- */* {
+         margin:0;
+         padding:0;
+         box-sizing:border-box;
+         font-family:'Poppins',sans-serif;
+}
+
+ :is(button, a, input, select):focus-visible {
+      outline:3px solid #1d4ed8;
+      outline-offset:3px;
+}
+
+ html, body {
+         height:100%;
+}
+
+ body {
+         min-height:100vh;
+         background-image:url('../../images/Welcomepage1.png');
+         background-size:cover;
+         background-position:center;
+         background-repeat:no-repeat;
+         position:relative;
+}
+
+ .hidden {
+         display:none !important;
+}
+
+ /* ---------- Top nav (switches between the three views) ---------- */.app-nav {
+         position:fixed;
+         top:18px;
+         right:24px;
+         z-index:20;
+         display:flex;
+         gap:8px;
+         background:rgba(255,255,255,.9);
+         padding:6px;
+         border-radius:12px;
+         box-shadow:0 6px 16px rgba(0,0,0,.18);
+}
+
+ .app-nav button {
+         border:none;
+         background:transparent;
+         padding:8px 14px;
+         font-family:'Poppins',sans-serif;
+         font-size:13px;
+         font-weight:700;
+         color:#555;
+         border-radius:8px;
+         cursor:pointer;
+         transition:.2s;
+}
+
+ .app-nav button:hover {
+         background:#f0eaea;
+}
+
+ .app-nav button.active {
+         background:#ed1c24;
+         color:#fff;
+}
+
+ /* Each top-level page view fills the viewport and centers its card */.page-view {
+         min-height:100vh;
+         display:flex;
+         justify-content:center;
+         align-items:center;
+}
+
+ /* ==========================================================================
+   Sign Up page (#signupPage)
+   ========================================================================== */#signupPage.page-view {
+         overflow:auto;
+         padding:90px 20px 40px;
+}
+
+ #signupPage .logo {
+         position:absolute;
+         top:18px;
+         left:28px;
+         width:140px;
+}
+
+ #signupPage .wrapper {
+         width:100%;
+         max-width:1150px;
+         display:grid;
+         grid-template-columns:1.35fr .9fr;
+         gap:30px;
+         align-items:stretch;
+}
+
+ #signupPage .card {
+         background:#fff;
+         border-radius:24px;
+         box-shadow:0 15px 30px rgba(0,0,0,.25);
+         padding:28px 24px;
+}
+
+ #signupPage .form-card h1 {
+         font-size:30px;
+         font-weight:800;
+         margin-bottom:14px;
+}
+
+ #signupPage .role-container {
+         display:grid;
+         grid-template-columns:1fr 1fr;
+         gap:15px;
+         margin:5px 0 20px;
+}
+
+ #signupPage .role-card {
+         height:72px;
+         border:none;
+         border-radius:18px;
+         background:#fff;
+         box-shadow:0 8px 15px rgba(0,0,0,.14);
+         display:flex;
+         align-items:center;
+         justify-content:center;
+         gap:12px;
+         cursor:pointer;
+         transition:.25s;
+}
+
+ #signupPage .role-card:hover {
+         transform:translateY(-3px);
+}
+
+ #signupPage .role-card.active {
+         outline:3px solid #c92228;
+}
+
+ #signupPage .icon-circle img {
+         width:38px;
+         height:38px;
+         object-fit:contain;
+}
+
+ #signupPage .role-card h3 {
+         font-size:16px;
+         font-weight:800;
+         color:#222;
+}
+
+ #signupPage .form-group {
+         margin-bottom:14px;
+}
+
+ #signupPage label {
+         display:block;
+         font-size:14px;
+         color:#555;
+         margin-bottom:5px;
+}
+
+ #signupPage input,#signupPage select {
+         width:100%;
+         height:36px;
+         border:none;
+         outline:none;
+         border-radius:7px;
+         background:#f0eaea;
+         padding:0 12px;
+         font-size:15px;
+         box-shadow:8px 8px 16px rgba(0,0,0,.18);
+}
+
+ #signupPage select {
+         appearance:none;
+         cursor:pointer;
+}
+
+ #signupPage .generate-btn {
+         width:100%;
+         height:52px;
+         border:none;
+         border-radius:10px;
+         background:#ed1c24;
+         color:white;
+         font-size:15px;
+         font-weight:800;
+         margin-top:12px;
+         cursor:pointer;
+         box-shadow:0 8px 14px rgba(0,0,0,.22);
+}
+
+ #signupPage .generate-btn:hover {
+         background:#c9141b;
+}
+
+ #signupPage .login-text {
+         margin-top:20px;
+         color:#777;
+         font-size:14px;
+}
+
+ #signupPage .login-link {
+         color:#5573ff;
+         font-size:18px;
+         font-weight:800;
+         text-decoration:none;
+         cursor:pointer;
+}
+
+ #signupPage .qr-card {
+         text-align:center;
+         display:flex;
+         flex-direction:column;
+         align-items:center;
+}
+
+ #signupPage .qr-card h2 {
+         color:#b51f28;
+         font-size:28px;
+         font-weight:800;
+         margin-bottom:15px;
+}
+
+ #signupPage .qr-note {
+         width:90%;
+         color:#666;
+         font-size:11px;
+         line-height:1.25;
+         text-align:left;
+         margin-bottom:20px;
+}
+
+ #signupPage .qr-box {
+         width:245px;
+         height:245px;
+         display:flex;
+         justify-content:center;
+         align-items:center;
+         margin-bottom:16px;
+}
+
+ #signupPage .qr-empty {
+         color:#999;
+         font-size:14px;
+         padding:20px;
+         border:2px dashed #ddd;
+         border-radius:15px;
+}
+
+ #signupPage .student-name,#signupPage .student-id,#signupPage .student-role {
+         font-size:15px;
+         color:#222;
+         margin-top:4px;
+         font-weight:600;
+}
+
+ @media(max-width:900px) {
+         #signupPage .wrapper {
+                 grid-template-columns:1fr;
+  }
+
+       #signupPage .logo {
+                 position:relative;
+                 top:auto;
+                 left:auto;
+                 width:120px;
+                 margin-bottom:20px;
+  }
+
+       #signupPage.page-view {
+                 flex-direction:column;
+                 align-items:center;
+  }
+}
+
+ /* ==========================================================================
+   ID Login page (#idLoginPage)
+   ========================================================================== */#idLoginPage.page-view {
+         overflow:hidden;
+}
+
+ #idLoginPage .logo {
+         position:absolute;
+         top:25px;
+         left:35px;
+         width:165px;
+         z-index:5;
+}
+
+ #idLoginPage .card {
+         width:78%;
+         max-width:995px;
+         min-height:575px;
+         background:#fff;
+         border-radius:28px;
+         box-shadow:0 12px 30px rgba(0,0,0,0.18);
+         padding:65px 58px 45px;
+         position:relative;
+         text-align:center;
+}
+
+ #idLoginPage .avatar {
+         width:105px;
+         height:105px;
+         background:#c92228;
+         border:6px solid #fff;
+         border-radius:50%;
+         position:absolute;
+         top:-55px;
+         left:50%;
+         transform:translateX(-50%);
+         display:flex;
+         justify-content:center;
+         align-items:center;
+         box-shadow:0 4px 12px rgba(0,0,0,0.15);
+}
+
+ #idLoginPage .avatar img {
+         width:62px;
+         height:62px;
+         object-fit:contain;
+}
+
+ #idLoginPage h1 {
+         font-size:42px;
+         font-weight:800;
+}
+
+ #idLoginPage h1 span {
+         color:#c92228;
+}
+
+ #idLoginPage .subtitle {
+         color:#666;
+         font-size:16px;
+         margin-bottom:35px;
+}
+
+ #idLoginPage .form-group {
+         text-align:left;
+         margin-bottom:34px;
+}
+
+ #idLoginPage label {
+         display:block;
+         font-size:21px;
+         font-weight:500;
+         margin-bottom:12px;
+}
+
+ #idLoginPage input {
+         width:100%;
+         height:68px;
+         border:none;
+         outline:none;
+         border-radius:8px;
+         background:#eee9e9;
+         padding:0 22px;
+         font-size:24px;
+         box-shadow:12px 12px 20px rgba(0,0,0,0.25);
+}
+
+ #idLoginPage .note {
+         text-align:left;
+         margin-top:-22px;
+         margin-bottom:28px;
+         color:#777;
+         font-size:14px;
+}
+
+ #idLoginPage .continue-btn {
+         width:100%;
+         height:60px;
+         border:none;
+         border-radius:10px;
+         background:#ed1c24;
+         color:#fff;
+         font-size:18px;
+         font-weight:700;
+         cursor:pointer;
+         box-shadow:10px 10px 18px rgba(0,0,0,0.22);
+         transition:0.25s;
+}
+
+ #idLoginPage .continue-btn:hover {
+         background:#c9141b;
+         transform:translateY(-2px);
+}
+
+ #idLoginPage .signup-text {
+         margin-top:60px;
+         color:#777;
+         font-size:17px;
+         font-weight:600;
+}
+
+ #idLoginPage .signup-link {
+         display:inline-block;
+         margin-top:5px;
+         font-size:24px;
+         font-weight:800;
+         color:#5573ff;
+         text-decoration:none;
+         cursor:pointer;
+}
+
+ #idLoginPage .signup-link:hover {
+         text-decoration:underline;
+}
+
+ @media(max-width:850px) {
+         #idLoginPage.page-view {
+                 overflow:auto;
+                 padding:100px 20px 40px;
+  }
+
+       #idLoginPage .card {
+                 width:100%;
+                 padding:65px 25px 40px;
+  }
+
+       #idLoginPage h1 {
+                 font-size:32px;
+  }
+
+       #idLoginPage .logo {
+                 width:130px;
+                 left:20px;
+  }
+}
+
+ /* ==========================================================================
+   QR Login page (#qrLoginPage)
+   ========================================================================== */#qrLoginPage.page-view {
+         overflow:hidden;
+}
+
+ #qrLoginPage .logo {
+         position:absolute;
+         top:25px;
+         left:35px;
+         width:165px;
+         z-index:5;
+}
+
+ #qrLoginPage .card {
+         width:80%;
+         max-width:1030px;
+         min-height:575px;
+         background:#fff;
+         border-radius:28px;
+         box-shadow:0 12px 30px rgba(0,0,0,.18);
+         padding:65px 60px 45px;
+         position:relative;
+         text-align:center;
+}
+
+ #qrLoginPage .avatar {
+         width:105px;
+         height:105px;
+         background:#c92228;
+         border:6px solid #fff;
+         border-radius:50%;
+         position:absolute;
+         top:-55px;
+         left:50%;
+         transform:translateX(-50%);
+         display:flex;
+         justify-content:center;
+         align-items:center;
+         box-shadow:0 4px 12px rgba(0,0,0,.15);
+}
+
+ #qrLoginPage .avatar img {
+         width:60px;
+         height:60px;
+         object-fit:contain;
+}
+
+ #qrLoginPage h1 {
+         font-size:42px;
+         font-weight:800;
+}
+
+ #qrLoginPage h1 span {
+         color:#c92228;
+}
+
+ #qrLoginPage .subtitle {
+         color:#666;
+         font-size:16px;
+         margin-bottom:35px;
+}
+
+ #qrLoginPage .form-group {
+         text-align:left;
+}
+
+ #qrLoginPage .form-group label {
+         display:block;
+         font-size:21px;
+         font-weight:500;
+         margin-bottom:20px;
+}
+
+ #qrLoginPage .qr-container {
+         width:52%;
+         min-width:460px;
+         height:250px;
+         margin:0 auto;
+         background:#efebeb;
+         border-radius:35px;
+         box-shadow:12px 12px 20px rgba(0,0,0,.20);
+         display:flex;
+         flex-direction:column;
+         justify-content:center;
+         align-items:center;
+         overflow:hidden;
+}
+
+ #qrLoginPage .qr-container img {
+         width:120px;
+         opacity:0.65;
+         margin-bottom:18px;
+}
+
+ #qrLoginPage .scan-text {
+         color:#666;
+         font-size:18px;
+         font-weight:600;
+}
+
+ #qrLoginPage .scan-subtext {
+         color:#999;
+         font-size:14px;
+         margin-top:5px;
+}
+
+ #qrLoginPage #qrInput {
+         position:absolute;
+         opacity:0;
+         pointer-events:none;
+}
+
+ #qrLoginPage .signup-text {
+         margin-top:45px;
+         color:#777;
+         font-size:17px;
+         font-weight:600;
+}
+
+ #qrLoginPage .signup-link {
+         display:inline-block;
+         margin-top:6px;
+         font-size:24px;
+         font-weight:800;
+         color:#5573ff;
+         text-decoration:none;
+         cursor:pointer;
+}
+
+ #qrLoginPage .signup-link:hover {
+         text-decoration:underline;
+}
+
+ #qrLoginPage .status-message {
+         margin-top:18px;
+         font-size:20px;
+         font-weight:600;
+         color:#666;
+}
+
+ #qrLoginPage .status-success {
+         color:#1b7f3a;
+}
+
+ #qrLoginPage .status-error {
+         color:#c92228;
+}
+
+ @media(max-width:850px) {
+         #qrLoginPage.page-view {
+                 overflow:auto;
+                 padding:100px 20px 40px;
+  }
+
+       #qrLoginPage .card {
+                 width:100%;
+                 padding:65px 25px 40px;
+  }
+
+       #qrLoginPage h1 {
+                 font-size:32px;
+  }
+
+       #qrLoginPage .qr-container {
+                 width:100%;
+                 min-width:0;
+  }
+
+       #qrLoginPage .logo {
+                 width:130px;
+                 left:20px;
+  }
+}
+
+ #signupPage input:focus-visible,#signupPage select:focus-visible,#idLoginPage input:focus-visible {
+         outline:3px solid #1d4ed8;
+         outline-offset:3px;
+}

@@ -1,0 +1,64 @@
+/* Overview dashboard only. Shared rules live in system-base/components.css. */.profile-card {
+     display:grid;
+     grid-template-columns:repeat(4,minmax(0,1fr));
+     gap:1px;
+     margin-bottom:18px;
+     border:1px solid var(--border);
+     border-radius:12px;
+     background:var(--border);
+     box-shadow:var(--small-shadow);
+     overflow:hidden
+}
+
+ .profile-card>div {
+     min-width:0;
+     padding:17px;
+     background:#fff
+}
+
+  .profile-card small,.profile-card strong {
+     display:block
+}
+
+  .profile-card small {
+     color:var(--text-muted);
+     font-size:10px;
+     font-weight:900;
+     text-transform:uppercase;
+     letter-spacing:.06em
+}
+
+  .profile-card strong {
+     margin-top:5px;
+     font-size:14px;
+     white-space:nowrap;
+     overflow:hidden;
+     text-overflow:ellipsis
+}
+
+ .dashboard-grid {
+     display:grid;
+     grid-template-columns:minmax(0,1.55fr) minmax(280px,.75fr);
+     gap:18px;
+     align-items:start
+}
+
+ .history-panel {
+     margin-top:18px
+}
+
+ @media(max-width:1050px) {
+     .profile-card {
+         grid-template-columns:repeat(2,minmax(0,1fr))
+  }
+
+      .dashboard-grid {
+         grid-template-columns:1fr
+  }
+}
+
+ @media(max-width:560px) {
+     .profile-card {
+         grid-template-columns:1fr
+  }
+}

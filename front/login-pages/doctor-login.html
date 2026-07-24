@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Doctor Portal Login</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<nav class="app-nav">
+    <button type="button" data-target="idLoginPage" class="active" onclick="showPage('idLoginPage')">ID Login</button>
+    <button type="button" data-target="qrLoginPage" onclick="showPage('qrLoginPage')">QR Login</button>
+</nav>
+
+<section id="idLoginPage" class="page-view">
+
+    <img src="../../images/MediPointLogo.png" alt="MediPoint Logo" class="logo">
+
+    <main class="card">
+
+        <div class="avatar">
+            <img src="../../images/clinicstafficon.png" alt="Doctor Icon">
+        </div>
+
+        <h1>Doctor Portal</h1>
+        <p class="subtitle">Use your registered doctor account to access the clinical portal</p>
+
+        <div class="form-group">
+            <label for="fullName2">Full Name</label>
+            <input type="text" id="fullName2" autocomplete="off">
+        </div>
+
+        <div class="form-group">
+            <label for="idNumber">Doctor ID / Personnel ID</label>
+            <input type="password" id="idNumber" autocomplete="off">
+        </div>
+
+        <p class="note">Only doctor and clinical staff accounts can access the clinical portal.</p>
+
+        <button class="continue-btn" type="button" onclick="continueLogin()">Continue</button>
+
+        <p class="signup-text">Need kiosk access?</p>
+        <a class="signup-link" href="login-landing.html">Go to Kiosk Login</a>
+
+    </main>
+
+</section>
+
+<section id="qrLoginPage" class="page-view hidden">
+
+    <img src="../../images/MediPointLogo.png" class="logo" alt="MediPoint Logo">
+
+    <input type="text" id="qrInput" autocomplete="off">
+
+    <main class="card">
+
+        <div class="avatar">
+            <img src="../../images/clinicstafficon.png" alt="Doctor Icon">
+        </div>
+
+        <h1>Doctor Portal</h1>
+        <p class="subtitle">Scan your doctor QR code to continue</p>
+
+        <div class="form-group">
+            <label for="qrInput">QR Code</label>
+            <div class="qr-container">
+                <img src="../../images/qricon.png" alt="QR Scanner Icon">
+
+                <p class="scan-text" id="scanText">Ready to Scan</p>
+                <p class="scan-subtext" id="scanSubtext">Place your QR code in front of the scanner</p>
+            </div>
+        </div>
+
+        <p class="status-message" id="statusMessage" aria-live="polite"></p>
+
+        <p class="signup-text">Need kiosk access?</p>
+        <a class="signup-link" href="login-landing.html">Go to Kiosk Login</a>
+
+    </main>
+
+</section>
+
+<script src="../shared.js"></script>
+<script src="medipoint-config.js"></script>
+<script src="kiosk-api.js"></script>
+<script src="script.js"></script>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const params = new URLSearchParams(window.location.search);
+    const view = params.get('view');
+    const role = params.get('role');
+
+    if (role !== 'doctor') {
+      window.location.replace('portal-auth.html');
+      return;
+    }
+
+    if (view === 'qr') {
+      showPage('qrLoginPage');
+    } else {
+      showPage('idLoginPage');
+    }
+  });
+</script>
+
+</body>
+</html>
+
+
+// Doctor account for testing : Medipoint Doctor, ID: MP-DOC-2026

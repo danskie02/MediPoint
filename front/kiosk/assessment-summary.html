@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    />
+
+    <meta
+        name="description"
+        content="MediPoint health assessment results and general health guidance"
+    />
+
+    <title>MediPoint Assessment Summary</title>
+
+    <!-- Google Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <link
+        href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet"
+    />
+
+    <link rel="stylesheet" href="assessment-summary.css" />
+</head>
+
+<body>
+
+    <!-- =====================================================
+         HEADER
+    ====================================================== -->
+
+    <header class="summary-header">
+
+        <a
+            href="../index.html"
+            class="header-logo-link"
+            aria-label="Go to MediPoint home"
+        >
+            <img
+                src="../../images/MediPointLogo.png"
+                alt="MediPoint Logo"
+            />
+        </a>
+
+        <div class="header-actions">
+
+            <button
+                type="button"
+                class="header-print-btn"
+                id="headerPrintBtn"
+            >
+                <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    aria-hidden="true"
+                >
+                    <path
+                        d="M7 8V4H17V8M7 17H5C3.9 17 3 16.1 3 15V10C3 8.9 3.9 8 5 8H19C20.1 8 21 8.9 21 10V15C21 16.1 20.1 17 19 17H17M7 14H17V21H7V14Z"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    />
+                </svg>
+
+                <span>Print</span>
+            </button>
+
+            <button
+                type="button"
+                class="back-home-btn"
+                id="backHomeBtn"
+            >
+                Back to Home
+            </button>
+
+        </div>
+
+    </header>
+
+
+    <!-- =====================================================
+         MAIN CONTENT
+    ====================================================== -->
+
+    <main class="summary-page" id="printableSummary">
+
+        <!-- Page Heading -->
+
+        <section class="summary-hero">
+
+            <span class="hero-label">
+                Assessment Summary
+            </span>
+
+            <h1>Health Check Results</h1>
+
+            <p>
+                Review your recorded measurements, general assessment,
+                and suggested lifestyle actions.
+            </p>
+
+        </section>
+
+
+        <!-- Medical Disclaimer -->
+
+        <aside class="medical-notice" role="note">
+
+            <div class="notice-icon" aria-hidden="true">!</div>
+
+            <p>
+                These results are intended for health monitoring and
+                educational purposes only. They must not be used as a
+                medical diagnosis or replacement for professional
+                medical advice.
+            </p>
+
+        </aside>
+
+
+        <!-- Patient Information -->
+
+        <section class="patient-card" aria-label="Patient information">
+
+            <article class="patient-info-item">
+                <span>Name</span>
+                <strong id="patientName">Guest</strong>
+            </article>
+
+            <article class="patient-info-item">
+                <span>Program or Department</span>
+                <strong id="patientProgram">Not specified</strong>
+            </article>
+
+            <article class="patient-info-item">
+                <span>Date and Time Measured</span>
+                <strong id="measuredAt">Not available</strong>
+            </article>
+
+        </section>
+
+
+        <!-- Measurement Results -->
+
+        <section class="results-card">
+
+            <div class="section-heading">
+
+                <div>
+                    <span class="section-label">
+                        Recorded Measurements
+                    </span>
+
+                    <h2>Vital Sign Results</h2>
+                </div>
+
+                <p id="summaryStatus">
+                    Your completed measurements are listed below.
+                </p>
+
+            </div>
+
+            <div
+                class="results-grid"
+                id="resultsGrid"
+                aria-live="polite"
+            ></div>
+
+        </section>
+
+
+        <!-- Assessment and Suggestions -->
+
+        <section class="guidance-grid">
+
+            <!-- Overall Assessment -->
+
+            <article class="assessment-card">
+
+                <div class="guidance-heading">
+
+                    <div class="guidance-icon assessment-icon">
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            aria-hidden="true"
+                        >
+                            <path
+                                d="M12 3L4 6V11C4 16.1 7.4 20.8 12 22C16.6 20.8 20 16.1 20 11V6L12 3ZM9 12L11 14L15 10"
+                                stroke="currentColor"
+                                stroke-width="1.8"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            />
+                        </svg>
+                    </div>
+
+                    <div>
+                        <span class="section-label">
+                            General Interpretation
+                        </span>
+
+                        <h2>Assessment</h2>
+                    </div>
+
+                </div>
+
+                <div
+                    class="assessment-summary"
+                    id="assessmentSummary"
+                >
+                    Complete the health measurements to generate an
+                    assessment summary.
+                </div>
+
+                <ul
+                    class="assessment-list"
+                    id="assessmentList"
+                ></ul>
+
+            </article>
+
+
+            <!-- Lifestyle Intervention -->
+
+            <article class="intervention-card">
+
+                <div class="guidance-heading">
+
+                    <div class="guidance-icon intervention-icon">
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            aria-hidden="true"
+                        >
+                            <path
+                                d="M12 21C12 21 5 17.4 5 10.7C5 7.8 7.1 5.5 10 5.5C11 5.5 11.8 5.9 12.5 6.6C13.2 5.9 14 5.5 15 5.5C17.9 5.5 20 7.8 20 10.7C20 17.4 12 21 12 21ZM4 4H8M6 2V6"
+                                stroke="currentColor"
+                                stroke-width="1.8"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            />
+                        </svg>
+                    </div>
+
+                    <div>
+                        <span class="section-label">
+                            Suggested Actions
+                        </span>
+
+                        <h2>Lifestyle Intervention</h2>
+                    </div>
+
+                </div>
+
+                <p class="intervention-intro">
+                    Consider the following general health practices based
+                    on the recorded results:
+                </p>
+
+                <ul
+                    class="intervention-list"
+                    id="interventionList"
+                ></ul>
+
+            </article>
+
+        </section>
+
+
+        <!-- Clinic Recommendation -->
+
+        <section
+            class="clinic-recommendation hidden"
+            id="clinicRecommendation"
+        >
+            <div class="clinic-icon" aria-hidden="true">+</div>
+
+            <div>
+                <h2>Clinic Consultation Recommended</h2>
+
+                <p>
+                    One or more recorded measurements may need further
+                    evaluation. Consider consulting qualified clinic
+                    personnel for appropriate verification and advice.
+                </p>
+            </div>
+        </section>
+
+
+        <!-- Print Section -->
+
+        <section class="print-section">
+
+            <div>
+                <h2>Keep a copy of your results</h2>
+
+                <p>
+                    Print this assessment summary for your personal health
+                    record or for review by clinic personnel.
+                </p>
+            </div>
+
+            <button
+                type="button"
+                class="print-btn"
+                id="printBtn"
+            >
+                <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    aria-hidden="true"
+                >
+                    <path
+                        d="M7 8V4H17V8M7 17H5C3.9 17 3 16.1 3 15V10C3 8.9 3.9 8 5 8H19C20.1 8 21 8.9 21 10V15C21 16.1 20.1 17 19 17H17M7 14H17V21H7V14Z"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    />
+                </svg>
+
+                <span>Print Results</span>
+            </button>
+
+        </section>
+
+    </main>
+
+
+    <!-- =====================================================
+         JAVASCRIPT
+    ====================================================== -->
+
+    <script src="../shared.js"></script>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const patientName =
+                document.getElementById("patientName");
+
+            const patientProgram =
+                document.getElementById("patientProgram");
+
+            const measuredAt =
+                document.getElementById("measuredAt");
+
+            const resultsGrid =
+                document.getElementById("resultsGrid");
+
+            const summaryStatus =
+                document.getElementById("summaryStatus");
+
+            const assessmentSummary =
+                document.getElementById("assessmentSummary");
+
+            const assessmentList =
+                document.getElementById("assessmentList");
+
+            const interventionList =
+                document.getElementById("interventionList");
+
+            const clinicRecommendation =
+                document.getElementById("clinicRecommendation");
+
+            const backHomeBtn =
+                document.getElementById("backHomeBtn");
+
+            const printBtn =
+                document.getElementById("printBtn");
+
+            const headerPrintBtn =
+                document.getElementById("headerPrintBtn");
+
+
+            /*
+             * Check whether shared.js loaded.
+             */
+            if (typeof MediPoint === "undefined") {
+                console.error(
+                    "MediPoint is unavailable. Check the shared.js path."
+                );
+
+                showNoAssessment();
+
+                return;
+            }
+
+
+            /*
+             * Verify the current signed-in user.
+             */
+            const signedInUser = MediPoint.getCurrentUser();
+
+            if (!signedInUser) {
+                window.location.replace(
+                    "../login-pages/login-landing.html"
+                );
+
+                return;
+            }
+
+
+            /*
+             * Load the latest saved assessment.
+             */
+            const assessment =
+                MediPoint.getLatestAssessment(signedInUser);
+
+
+            /*
+             * Safely escape displayed content.
+             */
+            function escapeHTML(value) {
+                const text = String(value ?? "");
+
+                if (
+                    typeof MediPoint.escapeHTML === "function"
+                ) {
+                    return MediPoint.escapeHTML(text);
+                }
+
+                return text
+                    .replaceAll("&", "&amp;")
+                    .replaceAll("<", "&lt;")
+                    .replaceAll(">", "&gt;")
+                    .replaceAll('"', "&quot;")
+                    .replaceAll("'", "&#039;");
+            }
+
+
+            /*
+             * Normalize a title for easier comparisons.
+             */
+            function normalizeTitle(title) {
+                return String(title || "")
+                    .trim()
+                    .toLowerCase();
+            }
+
+
+            /*
+             * Convert status text into a CSS class.
+             */
+            function getStatusClass(status) {
+                const normalized =
+                    String(status || "").toLowerCase();
+
+                if (normalized.includes("normal")) {
+                    return "status-normal";
+                }
+
+                if (
+                    normalized.includes("attention") ||
+                    normalized.includes("high") ||
+                    normalized.includes("low") ||
+                    normalized.includes("elevated")
+                ) {
+                    return "status-attention";
+                }
+
+                return "status-recorded";
+            }
+
+
+            /*
+             * Determine whether a result needs attention.
+             */
+            function resultNeedsAttention(result) {
+                const status =
+                    String(result.status || "").toLowerCase();
+
+                return (
+                    status.includes("needs attention") ||
+                    status.includes("high") ||
+                    status.includes("low") ||
+                    status.includes("elevated") ||
+                    status.includes("abnormal")
+                );
+            }
+
+
+            /*
+             * Parse the combined Height & Weight value created
+             * by the kiosk page.
+             *
+             * Expected format:
+             * 170 cm / 65 kg / BMI 22.5
+             */
+            function separateHeightWeightBMI(result) {
+                const value = String(result.value || "");
+
+                const heightMatch =
+                    value.match(/([\d.]+)\s*cm/i);
+
+                const weightMatch =
+                    value.match(/([\d.]+)\s*kg/i);
+
+                const bmiMatch =
+                    value.match(/BMI\s*([\d.]+)/i);
+
+                const separatedResults = [];
+
+                if (heightMatch) {
+                    separatedResults.push({
+                        title: "Height",
+                        value: heightMatch[1],
+                        unit: "cm",
+                        status: "Recorded",
+                        note:
+                            "Recorded standing height measurement."
+                    });
+                }
+
+                if (weightMatch) {
+                    separatedResults.push({
+                        title: "Weight",
+                        value: weightMatch[1],
+                        unit: "kg",
+                        status: "Recorded",
+                        note:
+                            "Recorded body weight measurement."
+                    });
+                }
+
+                if (bmiMatch) {
+                    const bmiValue =
+                        Number.parseFloat(bmiMatch[1]);
+
+                    separatedResults.push({
+                        title: "BMI",
+                        value: bmiMatch[1],
+                        unit: "kg/m²",
+                        status: getBMIStatus(bmiValue),
+                        note:
+                            "BMI is calculated using recorded height and weight."
+                    });
+                }
+
+                /*
+                 * Keep the original result when parsing fails.
+                 */
+                if (!separatedResults.length) {
+                    separatedResults.push(result);
+                }
+
+                return separatedResults;
+            }
+
+
+            /*
+             * General adult BMI classification.
+             */
+            function getBMIStatus(bmi) {
+                if (!Number.isFinite(bmi)) {
+                    return "Recorded";
+                }
+
+                if (bmi < 18.5) {
+                    return "Needs Attention";
+                }
+
+                if (bmi <= 24.9) {
+                    return "Normal";
+                }
+
+                return "Needs Attention";
+            }
+
+
+            /*
+             * Create separate Height, Weight, and BMI records.
+             */
+            function normalizeResults(results) {
+                return results.flatMap(function (result) {
+                    const title =
+                        normalizeTitle(result.title);
+
+                    if (
+                        title === "height & weight" ||
+                        title === "height and weight" ||
+                        title === "weight & bmi"
+                    ) {
+                        return separateHeightWeightBMI(result);
+                    }
+
+                    return [result];
+                });
+            }
+
+
+            /*
+             * Create one result tile.
+             */
+            function createResultTile(result) {
+                const statusClass =
+                    getStatusClass(result.status);
+
+                return `
+                    <article class="result-tile ${statusClass}">
+                        <div class="result-title-row">
+                            <h3>${escapeHTML(result.title)}</h3>
+
+                            <span class="result-status">
+                                ${escapeHTML(result.status || "Recorded")}
+                            </span>
+                        </div>
+
+                        <div class="result-reading">
+                            <strong>
+                                ${escapeHTML(result.value)}
+                            </strong>
+
+                            <span>
+                                ${escapeHTML(result.unit || "")}
+                            </span>
+                        </div>
+
+                        <p>
+                            ${escapeHTML(
+                                result.note ||
+                                "Measurement successfully recorded."
+                            )}
+                        </p>
+                    </article>
+                `;
+            }
+
+
+            /*
+             * Create the assessment explanations.
+             */
+            function createAssessmentItems(results) {
+                return results.map(function (result) {
+                    const title =
+                        normalizeTitle(result.title);
+
+                    const status =
+                        result.status || "Recorded";
+
+                    if (title === "height") {
+                        return {
+                            text:
+                                "Height was successfully recorded and may be used with weight to calculate BMI.",
+                            attention: false
+                        };
+                    }
+
+                    if (title === "weight") {
+                        return {
+                            text:
+                                "Weight was successfully recorded. Monitoring changes over time may be more useful than one isolated reading.",
+                            attention: false
+                        };
+                    }
+
+                    if (title === "bmi") {
+                        const bmi =
+                            Number.parseFloat(result.value);
+
+                        if (Number.isFinite(bmi)) {
+                            if (bmi < 18.5) {
+                                return {
+                                    text:
+                                        "The recorded BMI is below the commonly used adult reference range.",
+                                    attention: true
+                                };
+                            }
+
+                            if (bmi <= 24.9) {
+                                return {
+                                    text:
+                                        "The recorded BMI is within the commonly used adult reference range.",
+                                    attention: false
+                                };
+                            }
+
+                            if (bmi <= 29.9) {
+                                return {
+                                    text:
+                                        "The recorded BMI is above the commonly used adult reference range.",
+                                    attention: true
+                                };
+                            }
+
+                            return {
+                                text:
+                                    "The recorded BMI is considerably above the commonly used adult reference range.",
+                                attention: true
+                            };
+                        }
+                    }
+
+                    if (title.includes("heart rate")) {
+                        return {
+                            text:
+                                status === "Normal"
+                                    ? "The recorded resting heart rate is within the configured reference range."
+                                    : "The recorded heart rate falls outside the configured reference range and may require verification.",
+                            attention:
+                                resultNeedsAttention(result)
+                        };
+                    }
+
+                    if (
+                        title.includes("oxygen") ||
+                        title.includes("spo2")
+                    ) {
+                        return {
+                            text:
+                                status === "Normal"
+                                    ? "The recorded oxygen saturation is within the configured reference range."
+                                    : "The recorded oxygen saturation may require repeat measurement or professional evaluation.",
+                            attention:
+                                resultNeedsAttention(result)
+                        };
+                    }
+
+                    if (title.includes("temperature")) {
+                        return {
+                            text:
+                                status === "Normal"
+                                    ? "The recorded body temperature is within the configured reference range."
+                                    : "The recorded temperature falls outside the configured reference range.",
+                            attention:
+                                resultNeedsAttention(result)
+                        };
+                    }
+
+                    if (title.includes("blood pressure")) {
+                        return {
+                            text:
+                                status === "Normal"
+                                    ? "The recorded blood pressure is within the configured reference range."
+                                    : "The recorded blood pressure may require repeat measurement or consultation.",
+                            attention:
+                                resultNeedsAttention(result)
+                        };
+                    }
+
+                    return {
+                        text:
+                            `${result.title} was recorded with a status of ${status}.`,
+                        attention:
+                            resultNeedsAttention(result)
+                    };
+                });
+            }
+
+
+            /*
+             * Create lifestyle intervention suggestions.
+             */
+            function createInterventions(results) {
+                const suggestions = new Set([
+                    "Maintain regular physical activity appropriate for your age, ability, and health condition.",
+                    "Follow a balanced diet that includes vegetables, fruits, whole grains, and appropriate protein sources.",
+                    "Drink enough water and maintain a consistent sleep schedule."
+                ]);
+
+                results.forEach(function (result) {
+                    const title =
+                        normalizeTitle(result.title);
+
+                    const status =
+                        String(result.status || "");
+
+                    const needsAttention =
+                        resultNeedsAttention(result);
+
+                    if (
+                        title === "bmi" &&
+                        needsAttention
+                    ) {
+                        const bmi =
+                            Number.parseFloat(result.value);
+
+                        if (Number.isFinite(bmi) && bmi < 18.5) {
+                            suggestions.add(
+                                "Consider discussing healthy weight gain and nutritional needs with qualified health personnel."
+                            );
+                        } else {
+                            suggestions.add(
+                                "Consider gradual weight management through balanced meals, portion awareness, and regular activity."
+                            );
+                        }
+                    }
+
+                    if (
+                        title.includes("blood pressure")
+                    ) {
+                        suggestions.add(
+                            "Limit excessive sodium intake and avoid measuring blood pressure immediately after caffeine, exercise, or emotional stress."
+                        );
+                    }
+
+                    if (
+                        title.includes("heart rate")
+                    ) {
+                        suggestions.add(
+                            "Allow adequate rest, manage stress, and avoid excessive caffeine or stimulant intake."
+                        );
+                    }
+
+                    if (
+                        title.includes("oxygen") ||
+                        title.includes("spo2")
+                    ) {
+                        suggestions.add(
+                            "Avoid smoking and exposure to second-hand smoke, and seek help for persistent breathing difficulty."
+                        );
+                    }
+
+                    if (
+                        title.includes("temperature") &&
+                        status !== "Normal"
+                    ) {
+                        suggestions.add(
+                            "Rest, remain hydrated, and seek professional advice if an unusual temperature persists or is accompanied by concerning symptoms."
+                        );
+                    }
+                });
+
+                return Array.from(suggestions);
+            }
+
+
+            /*
+             * Display assessment information.
+             */
+            function renderAssessment(results) {
+                const items =
+                    createAssessmentItems(results);
+
+                const attentionCount =
+                    items.filter(function (item) {
+                        return item.attention;
+                    }).length;
+
+                if (attentionCount > 0) {
+                    assessmentSummary.textContent =
+                        `${attentionCount} recorded measurement${
+                            attentionCount === 1 ? "" : "s"
+                        } may need attention or verification.`;
+
+                    clinicRecommendation.classList.remove(
+                        "hidden"
+                    );
+                } else {
+                    assessmentSummary.textContent =
+                        "The completed measurements are within the configured reference ranges or were successfully recorded.";
+
+                    clinicRecommendation.classList.add(
+                        "hidden"
+                    );
+                }
+
+                assessmentList.innerHTML =
+                    items.map(function (item) {
+                        const itemClass =
+                            item.attention
+                                ? "assessment-attention"
+                                : "assessment-normal";
+
+                        return `
+                            <li class="${itemClass}">
+                                <span class="assessment-marker"></span>
+                                <span>${escapeHTML(item.text)}</span>
+                            </li>
+                        `;
+                    }).join("");
+            }
+
+
+            /*
+             * Display lifestyle suggestions.
+             */
+            function renderInterventions(results) {
+                const suggestions =
+                    createInterventions(results);
+
+                interventionList.innerHTML =
+                    suggestions.map(function (suggestion) {
+                        return `
+                            <li>
+                                <span class="intervention-check">✓</span>
+                                <span>${escapeHTML(suggestion)}</span>
+                            </li>
+                        `;
+                    }).join("");
+            }
+
+
+            /*
+             * Show an empty assessment state.
+             */
+            function showNoAssessment() {
+                resultsGrid.innerHTML = `
+                    <div class="empty-state">
+                        <strong>No assessment results found</strong>
+
+                        <p>
+                            Please complete the kiosk measurements before
+                            opening the assessment summary.
+                        </p>
+                    </div>
+                `;
+
+                summaryStatus.textContent =
+                    "No completed measurements are available.";
+
+                assessmentSummary.textContent =
+                    "An assessment cannot be generated because no measurement data was found.";
+
+                assessmentList.innerHTML = "";
+
+                interventionList.innerHTML = `
+                    <li>
+                        <span class="intervention-check">✓</span>
+                        <span>
+                            Complete the kiosk health assessment to receive
+                            general lifestyle suggestions.
+                        </span>
+                    </li>
+                `;
+            }
+
+
+            /*
+             * Render the saved assessment.
+             */
+            if (assessment) {
+                patientName.textContent =
+                    assessment.user ||
+                    signedInUser.name ||
+                    "Guest";
+
+                patientProgram.textContent =
+                    assessment.program ||
+                    signedInUser.program ||
+                    signedInUser.departmentOffice ||
+                    "Not specified";
+
+                measuredAt.textContent =
+                    assessment.date
+                        ? new Date(
+                            assessment.date
+                        ).toLocaleString(
+                            "en-US",
+                            {
+                                month: "long",
+                                day: "numeric",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit"
+                            }
+                        )
+                        : "Not available";
+
+                const originalResults =
+                    Array.isArray(assessment.results)
+                        ? assessment.results
+                        : [];
+
+                const results =
+                    normalizeResults(originalResults);
+
+                if (results.length) {
+                    const needsAttention =
+                        results.some(resultNeedsAttention);
+
+                    summaryStatus.textContent =
+                        needsAttention
+                            ? "Some measurements may need attention. Consider consulting clinic personnel when appropriate."
+                            : "All completed measurements are shown with their recorded status.";
+
+                    resultsGrid.innerHTML =
+                        results.map(
+                            createResultTile
+                        ).join("");
+
+                    renderAssessment(results);
+                    renderInterventions(results);
+                } else {
+                    showNoAssessment();
+                }
+            } else {
+                showNoAssessment();
+            }
+
+
+            /*
+             * Return to the home page.
+             */
+            backHomeBtn.addEventListener(
+                "click",
+                function () {
+                    window.location.href =
+                        "../index.html";
+                }
+            );
+
+
+            /*
+             * Print the assessment.
+             */
+            function printAssessment() {
+                window.print();
+            }
+
+            printBtn.addEventListener(
+                "click",
+                printAssessment
+            );
+
+            headerPrintBtn.addEventListener(
+                "click",
+                printAssessment
+            );
+        });
+    </script>
+
+</body>
+</html>
