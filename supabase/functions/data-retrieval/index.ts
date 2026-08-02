@@ -6,10 +6,7 @@
 
 import { corsHeaders, jsonResponse } from '../_shared/cors.js';
 import { createAdminClient } from '../_shared/supabase-admin.js';
-
-function normalizeText(value: unknown) {
-  return String(value || '').trim();
-}
+import { mapProfileRowToUser, normalizeText } from '../_shared/profile-mapper.js';
 
 function normalizeRole(value: unknown) {
   const role = normalizeText(value).toLowerCase();
@@ -17,23 +14,7 @@ function normalizeRole(value: unknown) {
 }
 
 function mapProfileToUser(profile: Record<string, unknown>) {
-  return {
-    id: profile.id,
-    idNumber: profile.id_number,
-    name: profile.full_name,
-    email: profile.email || '',
-    role: profile.role,
-    birthday: profile.birthday || '',
-    gender: profile.gender || '',
-    program: profile.program || '',
-    departmentOffice: profile.department_office || '',
-    phone: profile.phone || '',
-    emergencyContact: profile.emergency_contact_name || '',
-    emergencyPhone: profile.emergency_phone || '',
-    profileComplete: Boolean(profile.profile_complete),
-    memberSince: profile.member_since,
-    accountType: 'supabase',
-  };
+  return mapProfileRowToUser(profile, 'supabase');
 }
 
 function mapAssessment(record: Record<string, unknown>) {
@@ -136,7 +117,9 @@ Deno.serve(async (request) => {
   let profile = null;
   if (profileId) {
     profile = await fetchProfile(supabase, profileId);
-  } else if (idNumber) {
+  }
+
+  if (!profile && idNumber) {
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
@@ -146,10 +129,6 @@ Deno.serve(async (request) => {
     if (!error && data) {
       profile = data as Record<string, unknown>;
     }
-  }
-
-  if (!profile) {
-    return jsonResponse({ error: 'Profile not found.' }, 404);
   }
 
   if (!profile) {

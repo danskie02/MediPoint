@@ -133,31 +133,10 @@ function getUserProfiles() {
 }
 
 async function getMeasurementsFor(profile) {
-  const userId = profile.idNumber || profile.id || profile.studentNumber || profile.email || 'guest';
-  if(!window.MEDIPOINT_SUPABASE_URL || !window.MEDIPOINT_SUPABASE_ANON_KEY) {
-    return MediPoint.getMeasurements(userId);
-  }
-
-  try {
-    const response = await fetch(`${window.MEDIPOINT_SUPABASE_URL}/functions/v1/data-retrieval`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${window.MEDIPOINT_SUPABASE_ANON_KEY}`,
-        apikey: window.MEDIPOINT_SUPABASE_ANON_KEY,
-      },
-      body: JSON.stringify({
-        action: 'profile',
-        idNumber: profile.idNumber || profile.id || profile.studentNumber || profile.email || '',
-      }),
-    });
-
-    const data = await response.json().catch(() => ({}));
-    if(response.ok && data && Array.isArray(data.assessments)) {
-      return data.assessments;
-    }
-  } catch (error) {
-    console.warn('Unable to load doctor assessment data from Supabase.', error);
+  const userId = MediPoint.getPublicIdNumber(profile) || profile.email || 'guest';
+  const remoteAssessments = await MediPoint.fetchAssessmentsFromDatabase(profile);
+  if (remoteAssessments !== null) {
+    return remoteAssessments;
   }
 
   return MediPoint.getMeasurements(userId);
@@ -205,12 +184,12 @@ async function buildPatientList() {
       latestResults,
       status,
       lastCheckin,
-      patientId: profile.idNumber || profile.id || profile.studentNumber || profile.email || `${profile.name || 'patient'}-${profiles.indexOf(profile)}`
+      patientId: MediPoint.getPublicIdNumber(profile) || profile.email || `${profile.name || 'patient'}-${profiles.indexOf(profile)}`
     };
   }));
 
   const filteredPatients = patients.filter(patient => {
-    const matchesSearch = `${patient.name || ''} ${patient.idNumber || patient.id || ''}`.toLowerCase().includes(searchValue);
+    const matchesSearch = `${patient.name || ''} ${MediPoint.getPublicIdNumber(patient) || ''}`.toLowerCase().includes(searchValue);
     const matchesFilter = activeFilter === 'All' || patient.status === activeFilter;
     return matchesSearch && matchesFilter;
   });
@@ -241,7 +220,7 @@ async function buildPatientList() {
       <div class="patient-top">
         <div>
           <strong>${MediPoint.escapeHTML(patient.name || 'Unknown User')}</strong>
-          <span>${MediPoint.escapeHTML(patient.idNumber || patient.id || 'No ID')}</span>
+          <span>${MediPoint.escapeHTML(MediPoint.getPublicIdNumber(patient) || 'No ID')}</span>
         </div>
         <span class="patient-badge ${patient.status.toLowerCase()}">${patient.status}</span>
       </div>
@@ -291,7 +270,7 @@ function renderPatientDetail(patient) {
   patientDetail.innerHTML = `
     <div class="detail-header">
       <h3>${MediPoint.escapeHTML(patient.name || 'Unknown User')}</h3>
-      <p>${MediPoint.escapeHTML(patient.idNumber || patient.id || 'No ID')} • ${MediPoint.escapeHTML(patient.role || 'Student')} • Last check-in ${MediPoint.escapeHTML(patient.lastCheckin)}</p>
+      <p>${MediPoint.escapeHTML(MediPoint.getPublicIdNumber(patient) || 'No ID')} • ${MediPoint.escapeHTML(patient.role || 'Student')} • Last check-in ${MediPoint.escapeHTML(patient.lastCheckin)}</p>
       <p><strong>Status:</strong> ${patient.status}</p>
       <p>${recommendation}</p>
     </div>

@@ -23,6 +23,10 @@ port = 54323
 verify_jwt = false
 entrypoint = "./functions/kiosk-qr-login/index.ts"
 
+[functions.update-profile]
+verify_jwt = false
+entrypoint = "./functions/update-profile/index.ts"
+
 [functions.doctor-data]
 verify_jwt = false
 entrypoint = "./functions/doctor-data/index.ts"

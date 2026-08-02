@@ -5,14 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MediPoint Kiosk</title>
   <link rel="stylesheet" href="kiosk.css" />
+  <link rel="stylesheet" href="kiosk-audio.css" />
 </head>
 
 <body>
   <header class="topbar">
     <img src="../../images/MediPointLogo.png" alt="MediPoint Logo" class="logo" />
-    <div class="header-box">
-      <div class="header-time" id="currentTime"></div>
-      <div class="header-date" id="currentDate"></div>
+    <div class="header-actions" id="headerActions">
+      <div class="header-box">
+        <div class="header-time" id="currentTime"></div>
+        <div class="header-date" id="currentDate"></div>
+      </div>
     </div>
   </header>
 
@@ -162,6 +165,7 @@
 
   <script src="../shared.js"></script>
   <script src="../login-pages/kiosk-api.js"></script>
+  <script src="kiosk-audio.js"></script>
   <script>
     const signedInUser = MediPoint.getCurrentUser();
     if (!signedInUser) {
@@ -250,6 +254,14 @@
       }
     }
 
+    async function sendSerialRefresh() {
+      const sent = await sendSerialCommand('REFRESH');
+      if (sent) {
+        console.info('[MediPoint] Sent serial refresh to reset Arduino state.');
+      }
+      return sent;
+    }
+
     async function listenForSerialMessages() {
       if (!serialPort || !serialPort.readable || !serialReader) {
         return;
@@ -309,6 +321,28 @@
     }
 
     const instructions = {
+      'Height': {
+        sensor: 'Height Sensor',
+        text: 'Stand straight on the height platform with bare feet. Look forward and stay still until the measurement completes.',
+        image: '../../images/abouticon.png',
+        unit: 'cm',
+        steps: [
+          'Remove shoes and stand on the height platform with bare feet.',
+          'Stand up straight with your back against the sensor and look forward.',
+          'Keep your feet flat and remain still while we measure your height.'
+        ]
+      },
+      'Weight': {
+        sensor: 'Weight Scale',
+        text: 'Step onto the weight scale and stand centered. Stay still until the measurement completes.',
+        image: '../../images/abouticon.png',
+        unit: 'kg',
+        steps: [
+          'Step onto the weight scale and stand in the center.',
+          'Distribute your weight evenly on both feet.',
+          'Remain still and wait while we measure your weight.'
+        ]
+      },
       'Height & Weight': {
         sensor: 'Height Sensor and Weight Scale',
         text: 'Stand straight on the height platform, then step onto the weight scale. Stay still while the kiosk measures your height and weight.',
@@ -372,14 +406,29 @@
       currentTime.textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     }
 
-    function closeInstructionModal() {
+    function updateModalStatus(message, shouldSpeak = true) {
+      modalText.textContent = message;
+      if (shouldSpeak) {
+        MediPointKioskAudio.speak(message);
+      }
+    }
+
+    async function closeInstructionModal() {
       if (modalStartBtn.dataset.state === 'measuring') {
         return;
       }
 
+      MediPointKioskAudio.stop();
+
       if (allMeasurementsComplete()) {
         window.location.href = 'assessment-summary.html';
         return;
+      }
+
+      if (modalStartBtn.dataset.state === 'complete') {
+        await sendSerialRefresh();
+        modalStartBtn.dataset.state = 'ready';
+        modalStartBtn.textContent = 'START';
       }
 
       modal.classList.add('hidden');
@@ -531,8 +580,8 @@
       try {
         if (window.MediPointKioskApi && window.MEDIPOINT_SUPABASE_URL && window.MEDIPOINT_SUPABASE_ANON_KEY) {
           await window.MediPointKioskApi.storeAssessment({
-            profileId: signedInUser && (signedInUser.id || signedInUser.idNumber || signedInUser.studentNumber) ? String(signedInUser.id || signedInUser.idNumber || signedInUser.studentNumber) : '',
-            idNumber: signedInUser && (signedInUser.idNumber || signedInUser.studentNumber) ? String(signedInUser.idNumber || signedInUser.studentNumber) : '',
+            profileId: MediPoint.getProfileId(signedInUser) || '',
+            idNumber: MediPoint.getPublicIdNumber(signedInUser) || '',
             userName: signedInUser && signedInUser.name ? signedInUser.name : '',
             program: signedInUser && (signedInUser.program || signedInUser.departmentOffice) ? String(signedInUser.program || signedInUser.departmentOffice) : '',
             results: localRecord.results,
@@ -572,30 +621,32 @@
         modalStartBtn.disabled = false;
         modal.classList.remove('hidden');
         closeModal.focus();
+        MediPointKioskAudio.speakInstructions(title, info);
       });
     });
 
-    closeModal.addEventListener('click', closeInstructionModal);
+    closeModal.addEventListener('click', () => { void closeInstructionModal(); });
     modal.addEventListener('click', event => {
       if (event.target === modal) {
-        closeInstructionModal();
+        void closeInstructionModal();
       }
     });
 
     document.addEventListener('keydown', event => {
       if (event.key === 'Escape' && !modal.classList.contains('hidden')) {
-        closeInstructionModal();
+        void closeInstructionModal();
       }
     });
 
     modalStartBtn.addEventListener('click', async () => {
       if (modalStartBtn.dataset.state === 'complete') {
-        closeInstructionModal();
+        await closeInstructionModal();
         return;
       }
 
       if (modalStartBtn.dataset.state === 'summary') {
         await saveAssessment();
+        MediPointKioskAudio.stop();
         window.location.href = 'assessment-summary.html';
         return;
       }
@@ -618,24 +669,24 @@
         pendingWeightMeasurement = null;
 
         if (title === 'Height') {
-          modalText.textContent = 'Activating height sensor...';
+          updateModalStatus('Activating height sensor...');
           serialOk = await sendSerialCommand('MEASURE_HEIGHT');
           if (serialOk) {
-            modalText.textContent = 'Height sensor activated. Please stay still while measuring.';
+            updateModalStatus('Height sensor activated. Please stay still while measuring.');
             heightAvailable = await waitForSerialMeasurement('height', 12000);
             if (heightAvailable) measurementType = 'height';
           } else {
-            modalText.textContent = 'Serial connection unavailable; continuing with demo data.';
+            updateModalStatus('Serial connection unavailable; continuing with demo data.');
           }
         } else {
-          modalText.textContent = 'Activating weight sensor...';
+          updateModalStatus('Activating weight sensor...');
           serialOk = await sendSerialCommand('MEASURE_WEIGHT');
           if (serialOk) {
-            modalText.textContent = 'Weight sensor activated. Please stay still while measuring.';
+            updateModalStatus('Weight sensor activated. Please stay still while measuring.');
             weightAvailable = await waitForSerialMeasurement('weight', 12000);
             if (weightAvailable) measurementType = 'weight';
           } else {
-            modalText.textContent = 'Serial connection unavailable; continuing with demo data.';
+            updateModalStatus('Serial connection unavailable; continuing with demo data.');
           }
         }
       } else if (title === 'Heart Rate' || title === 'Oxygen Saturation') {
@@ -646,10 +697,10 @@
         if ((title === 'Heart Rate' && pendingHeartRateMeasurement !== null) ||
             (title === 'Oxygen Saturation' && pendingSpO2Measurement !== null)) {
           measurementType = title === 'Heart Rate' ? 'heartRate' : 'spo2';
-          modalText.textContent = 'Using cached sensor result.';
+          updateModalStatus('Using cached sensor result.');
         } else if (alternateCached) {
           measurementType = title === 'Heart Rate' ? 'heartRate' : 'spo2';
-          modalText.textContent = 'Using paired sensor result from the previous reading.';
+          updateModalStatus('Using paired sensor result from the previous reading.');
         } else {
           if (title === 'Heart Rate') {
             pendingHeartRateMeasurement = null;
@@ -657,10 +708,10 @@
             pendingSpO2Measurement = null;
           }
 
-          modalText.textContent = 'Activating MAX30105 sensor...';
+          updateModalStatus('Activating MAX30105 sensor...');
           serialOk = await sendSerialCommand('MEASURE_MAX30105');
           if (serialOk) {
-            modalText.textContent = 'MAX30105 sensor activated. Please keep your finger steady.';
+            updateModalStatus('MAX30105 sensor activated. Please keep your finger steady.');
             if (title === 'Heart Rate') {
               heartRateAvailable = await waitForSerialMeasurement('heartRate', 60000);
               if (heartRateAvailable) measurementType = 'heartRate';
@@ -669,22 +720,22 @@
               if (spo2Available) measurementType = 'spo2';
             }
           } else {
-            modalText.textContent = 'Serial connection unavailable; continuing with demo data.';
+            updateModalStatus('Serial connection unavailable; continuing with demo data.');
           }
         }
       } else if (title === 'Body Temperature') {
         pendingTemperatureMeasurement = null;
-        modalText.textContent = 'Activating temperature sensor...';
+        updateModalStatus('Activating temperature sensor...');
         serialOk = await sendSerialCommand('MEASURE_TEMPERATURE');
         if (serialOk) {
-          modalText.textContent = 'Temperature sensor activated. Please keep still while measuring.';
+          updateModalStatus('Temperature sensor activated. Please keep still while measuring.');
           temperatureAvailable = await waitForSerialMeasurement('temperature', 12000);
           if (temperatureAvailable) measurementType = 'temperature';
         } else {
-          modalText.textContent = 'Serial connection unavailable; continuing with demo data.';
+          updateModalStatus('Serial connection unavailable; continuing with demo data.');
         }
       } else {
-        modalText.textContent = 'Please stay still and do not talk while measuring.';
+        updateModalStatus('Please stay still and do not talk while measuring.');
       }
 
       if (title === 'Height') {
@@ -746,9 +797,9 @@
 
       if (measurementType === null && serialOk) {
         if (title === 'Height' || title === 'Weight' || title === 'Body Temperature') {
-          modalText.textContent = 'No serial response received yet; using demo data.';
+          updateModalStatus('No serial response received yet; using demo data.');
         } else if (title === 'Heart Rate' || title === 'Oxygen Saturation') {
-          modalText.textContent = 'No sensor response received yet; using demo data.';
+          updateModalStatus('No sensor response received yet; using demo data.');
         }
       }
 
@@ -759,7 +810,11 @@
       } else {
         selectedCard.classList.add('completed');
       }
-      modalText.textContent = 'Measurement complete. Review your result before continuing.';
+
+      const completionMessage = allMeasurementsComplete()
+        ? `Measurement complete. Your ${title} is ${result.value}. All measurements are finished. Press View Summary to continue.`
+        : `Measurement complete. Your ${title} is ${result.value}. Review your result before continuing.`;
+      updateModalStatus(completionMessage);
       renderModalResult(result);
       
       if (allMeasurementsComplete()) {
@@ -775,6 +830,8 @@
 
     updateDateTime();
     setInterval(updateDateTime, 1000);
+
+    MediPointKioskAudio.createToggleButton(document.getElementById('headerActions'));
   </script>
 </body>
 </html>

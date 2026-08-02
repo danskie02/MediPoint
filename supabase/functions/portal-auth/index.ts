@@ -6,10 +6,7 @@
 
 import { corsHeaders, jsonResponse } from '../_shared/cors.js';
 import { createAdminClient } from '../_shared/supabase-admin.js';
-
-function normalizeText(value: unknown) {
-  return String(value || '').trim();
-}
+import { mapProfileRowToUser, normalizeRole, normalizeText } from '../_shared/profile-mapper.js';
 
 function normalizeName(value: unknown) {
   return normalizeText(value).toLowerCase();
@@ -19,29 +16,8 @@ function normalizeEmail(value: unknown) {
   return normalizeText(value).toLowerCase();
 }
 
-function normalizeRole(value: unknown) {
-  const role = normalizeText(value).toLowerCase();
-  return role === 'doctor' ? 'doctor' : role === 'personnel' ? 'personnel' : 'student';
-}
-
 function mapProfileToPortalUser(profile: Record<string, unknown>) {
-  return {
-    id: profile.id,
-    idNumber: profile.id_number,
-    name: profile.full_name,
-    email: profile.email || '',
-    role: profile.role,
-    birthday: profile.birthday || '',
-    gender: profile.gender || '',
-    program: profile.program || '',
-    departmentOffice: profile.department_office || '',
-    phone: profile.phone || '',
-    emergencyContact: profile.emergency_contact_name || '',
-    emergencyPhone: profile.emergency_phone || '',
-    profileComplete: Boolean(profile.profile_complete),
-    memberSince: profile.member_since,
-    accountType: 'portal',
-  };
+  return mapProfileRowToUser(profile, 'portal');
 }
 
 async function loginPortal(

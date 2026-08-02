@@ -39,31 +39,10 @@
   }
 
   async function fetchAssessmentsFor(profile) {
-    const idNumber = profile.idNumber || profile.id || profile.studentNumber || '';
-    if(!window.MEDIPOINT_SUPABASE_URL || !window.MEDIPOINT_SUPABASE_ANON_KEY || !idNumber) {
-      return MediPoint.getMeasurements(idNumber || profile.email || 'guest');
-    }
-
-    try {
-      const response = await fetch(`${window.MEDIPOINT_SUPABASE_URL}/functions/v1/data-retrieval`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${window.MEDIPOINT_SUPABASE_ANON_KEY}`,
-          apikey: window.MEDIPOINT_SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({
-          action: 'profile',
-          idNumber,
-        }),
-      });
-
-      const data = await response.json().catch(() => ({}));
-      if (response.ok && data && Array.isArray(data.assessments)) {
-        return data.assessments;
-      }
-    } catch (error) {
-      console.warn('Unable to load doctor assessment data from Supabase.', error);
+    const idNumber = MediPoint.getPublicIdNumber(profile) || '';
+    const remoteAssessments = await MediPoint.fetchAssessmentsFromDatabase(profile);
+    if (remoteAssessments !== null) {
+      return remoteAssessments;
     }
 
     return MediPoint.getMeasurements(idNumber || profile.email || 'guest');
@@ -100,8 +79,9 @@
   async function refreshData() {
     const latestProfiles = await fetchDoctorProfiles();
     latestProfiles.forEach((profile) => {
-      if (!profile.idNumber && profile.id) {
-        profile.idNumber = profile.id;
+      const publicId = MediPoint.getPublicIdNumber(profile);
+      if (publicId) {
+        profile.idNumber = publicId;
       }
     });
 
@@ -110,7 +90,7 @@
       assessments: await fetchAssessmentsFor(profile),
     })));
 
-    profiles = enrichedProfiles.length ? enrichedProfiles : profiles.map(profile => ({ ...profile, assessments: MediPoint.getMeasurements(profile.idNumber || profile.id || profile.studentNumber) }));
+    profiles = enrichedProfiles.length ? enrichedProfiles : profiles.map(profile => ({ ...profile, assessments: MediPoint.getMeasurements(MediPoint.getPublicIdNumber(profile)) }));
     const liveProfiles = profiles;
     const liveRecords = user => Array.isArray(user.assessments) ? user.assessments : [];
     const liveStatusFor = user => {

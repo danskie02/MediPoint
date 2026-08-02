@@ -25,6 +25,7 @@
     />
 
     <link rel="stylesheet" href="assessment-summary.css" />
+    <link rel="stylesheet" href="kiosk-audio.css" />
 </head>
 
 <body>
@@ -46,7 +47,7 @@
             />
         </a>
 
-        <div class="header-actions">
+        <div class="header-actions" id="headerActions">
 
             <button
                 type="button"
@@ -338,9 +339,13 @@
     ====================================================== -->
 
     <script src="../shared.js"></script>
+    <script src="kiosk-audio.js"></script>
 
     <script>
         document.addEventListener("DOMContentLoaded", function () {
+            MediPointKioskAudio.createToggleButton(
+                document.getElementById("headerActions")
+            );
             const patientName =
                 document.getElementById("patientName");
 
@@ -986,6 +991,11 @@
 
                     renderAssessment(results);
                     renderInterventions(results);
+
+                    MediPointKioskAudio.speak(
+                        summaryStatus.textContent +
+                            " Review your health check results on screen."
+                    );
                 } else {
                     showNoAssessment();
                 }
@@ -1000,10 +1010,17 @@
             backHomeBtn.addEventListener(
                 "click",
                 function () {
+                    MediPointKioskAudio.stop();
                     window.location.href =
                         "../index.html";
                 }
             );
+
+            document
+                .querySelector(".header-logo-link")
+                .addEventListener("click", function () {
+                    MediPointKioskAudio.stop();
+                });
 
 
             /*

@@ -6,36 +6,12 @@
 
 import { corsHeaders, jsonResponse } from '../_shared/cors.js';
 import { createAdminClient } from '../_shared/supabase-admin.js';
+import { mapProfileRowToUser, normalizeRole, normalizeText } from '../_shared/profile-mapper.js';
 
 const KIOSK_ROLES = new Set(['student', 'personnel']);
 
-function normalizeText(value: unknown) {
-  return String(value || '').trim();
-}
-
-function normalizeRole(value: unknown) {
-  const role = normalizeText(value).toLowerCase();
-  return role === 'personnel' ? 'personnel' : 'student';
-}
-
 function mapProfileToSessionUser(profile: Record<string, unknown>) {
-  return {
-    id: profile.id,
-    idNumber: profile.id_number,
-    name: profile.full_name,
-    email: profile.email || '',
-    role: profile.role,
-    birthday: profile.birthday || '',
-    gender: profile.gender || '',
-    program: profile.program || '',
-    departmentOffice: profile.department_office || '',
-    phone: profile.phone || '',
-    emergencyContact: profile.emergency_contact_name || '',
-    emergencyPhone: profile.emergency_phone || '',
-    profileComplete: Boolean(profile.profile_complete),
-    memberSince: profile.member_since,
-    accountType: 'kiosk',
-  };
+  return mapProfileRowToUser(profile, 'kiosk');
 }
 
 async function createProfile(

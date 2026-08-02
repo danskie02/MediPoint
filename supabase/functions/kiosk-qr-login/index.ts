@@ -9,6 +9,7 @@
 
 import { corsHeaders, jsonResponse } from '../_shared/cors.js';
 import { createAdminClient } from '../_shared/supabase-admin.js';
+import { mapProfileRowToUser } from '../_shared/profile-mapper.js';
 
 const LEGACY_PREFIX = 'medipoint:v1:';
 const TOKEN_PREFIX = 'medipoint:v2:';
@@ -21,23 +22,7 @@ function normalizePayload(rawValue: unknown) {
 }
 
 function mapProfileToSessionUser(profile: Record<string, unknown>) {
-  return {
-    id: profile.id,
-    idNumber: profile.id_number,
-    name: profile.full_name,
-    email: profile.email || '',
-    role: profile.role,
-    birthday: profile.birthday || '',
-    gender: profile.gender || '',
-    program: profile.program || '',
-    departmentOffice: profile.department_office || '',
-    phone: profile.phone || '',
-    emergencyContact: profile.emergency_contact_name || '',
-    emergencyPhone: profile.emergency_phone || '',
-    profileComplete: Boolean(profile.profile_complete),
-    memberSince: profile.member_since,
-    accountType: 'kiosk',
-  };
+  return mapProfileRowToUser(profile, 'kiosk');
 }
 
 async function resolveProfile(supabase: ReturnType<typeof createAdminClient>, qrPayload: unknown) {

@@ -7,33 +7,13 @@
 
 import { corsHeaders, jsonResponse } from '../_shared/cors.js';
 import { createAdminClient } from '../_shared/supabase-admin.js';
-
-function normalizeText(value: unknown) {
-  return String(value || '').trim();
-}
-
-function normalizeRole(value: unknown) {
-  const role = normalizeText(value).toLowerCase();
-  return role === 'doctor' ? 'doctor' : role === 'personnel' ? 'personnel' : 'student';
-}
+import { mapProfileRowToUser, normalizeRole } from '../_shared/profile-mapper.js';
 
 function mapProfileToDoctorUser(profile: Record<string, unknown>) {
+  const user = mapProfileRowToUser(profile, 'portal');
   return {
-    id: profile.id,
-    idNumber: profile.id_number,
-    name: profile.full_name,
-    email: profile.email || '',
+    ...user,
     role: normalizeRole(profile.role),
-    birthday: profile.birthday || '',
-    gender: profile.gender || '',
-    program: profile.program || '',
-    departmentOffice: profile.department_office || '',
-    phone: profile.phone || '',
-    emergencyContact: profile.emergency_contact_name || '',
-    emergencyPhone: profile.emergency_phone || '',
-    profileComplete: Boolean(profile.profile_complete),
-    memberSince: profile.member_since,
-    accountType: 'portal',
   };
 }
 
@@ -56,7 +36,7 @@ Deno.serve(async (request) => {
 
   const { data: profiles, error } = await supabase
     .from('profiles')
-    .select('id,id_number,full_name,email,role,birthday,gender,program,department_office,phone,emergency_contact_name,emergency_phone,profile_complete,member_since')
+    .select('*')
     .order('full_name');
 
   if (error) {

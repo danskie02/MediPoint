@@ -30,6 +30,96 @@
     return String(value || '').trim();
   }
 
+  function isUuid(value) {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(normalizeId(value));
+  }
+
+  function getPublicIdNumber(user) {
+    if (!user) return '';
+
+    const candidates = [user.idNumber, user.studentNumber, user.id];
+    for (const candidate of candidates) {
+      const value = normalizeId(candidate);
+      if (value && !isUuid(value)) {
+        return value;
+      }
+    }
+
+    return normalizeId(user.idNumber || user.studentNumber || '');
+  }
+
+  function getProfileId(user) {
+    if (!user) return '';
+
+    if (isUuid(user.profileId)) {
+      return normalizeId(user.profileId);
+    }
+
+    if (isUuid(user.id)) {
+      return normalizeId(user.id);
+    }
+
+    return normalizeId(user.profileId || '');
+  }
+
+  async function repairUserIdentity(user) {
+    if (!user) return user;
+
+    const publicId = getPublicIdNumber(user);
+    if (publicId) {
+      const repaired = {
+        ...user,
+        idNumber: publicId,
+        profileId: getProfileId(user) || user.profileId || ''
+      };
+
+      if (repaired.idNumber !== user.idNumber) {
+        saveUser(repaired);
+        setCurrentUser(repaired);
+      }
+
+      return repaired;
+    }
+
+    const profileId = getProfileId(user);
+    if (!profileId || !window.MEDIPOINT_SUPABASE_URL || !window.MEDIPOINT_SUPABASE_ANON_KEY) {
+      return user;
+    }
+
+    try {
+      const response = await fetch(`${window.MEDIPOINT_SUPABASE_URL}/functions/v1/data-retrieval`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${window.MEDIPOINT_SUPABASE_ANON_KEY}`,
+          apikey: window.MEDIPOINT_SUPABASE_ANON_KEY
+        },
+        body: JSON.stringify({
+          action: 'profile',
+          profileId
+        })
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && data.user && data.user.idNumber && !isUuid(data.user.idNumber)) {
+        const repaired = {
+          ...user,
+          ...data.user,
+          id: data.user.id,
+          profileId: data.user.id,
+          idNumber: data.user.idNumber
+        };
+        saveUser(repaired);
+        setCurrentUser(repaired);
+        return repaired;
+      }
+    } catch (error) {
+      console.warn('Unable to repair stored user identity.', error);
+    }
+
+    return user;
+  }
+
   function userKey(id) {
     return `user_${normalizeId(id)}`;
   }
@@ -170,33 +260,59 @@
     const normalizedName = String(name || '').trim().toLowerCase();
     const normalizedId = normalizeId(idNumber);
     const account = getPortalAccounts().find(item => item.userId === normalizedId);
-    if(!account) return null;
-    const user = getPortalProfile(account.userId);
-    return user && String(user.name || '').trim().toLowerCase() === normalizedName ? user : null;
+
+    if (account) {
+      const user = getPortalProfile(account.userId);
+      if (user && String(user.name || '').trim().toLowerCase() === normalizedName) {
+        return user;
+      }
+    }
+
+    const kioskUser = getUser(normalizedId);
+    if (kioskUser && String(kioskUser.name || '').trim().toLowerCase() === normalizedName) {
+      const role = String(kioskUser.role || '').toLowerCase();
+      if (role === 'doctor' && !kioskUser.managedAccount) {
+        return null;
+      }
+      return {
+        ...kioskUser,
+        accountType: kioskUser.accountType || 'kiosk'
+      };
+    }
+
+    return null;
   }
 
   function saveUser(user, previousId) {
-    const id = normalizeId(user && (user.idNumber || user.id || user.studentNumber));
-    if(!id) throw new Error('A user ID is required.');
+    const idNumber = getPublicIdNumber(user);
+    if (!idNumber) throw new Error('A user ID is required.');
+
+    const profileId = getProfileId(user);
+    const storedUser = {
+      ...user,
+      idNumber,
+      profileId: profileId || user.profileId || '',
+      id: profileId || user.id || idNumber
+    };
 
     const isPortalProfile = user && user.accountType === 'portal';
-    const destinationKey = isPortalProfile ? portalProfileKey(id) : userKey(id);
-    localStorage.setItem(destinationKey, JSON.stringify({ ...user, idNumber: id }));
+    const destinationKey = isPortalProfile ? portalProfileKey(idNumber) : userKey(idNumber);
+    localStorage.setItem(destinationKey, JSON.stringify(storedUser));
 
     const oldId = normalizeId(previousId);
-    if(oldId && oldId !== id) {
+    if(oldId && oldId !== idNumber) {
       const oldMeasurements = getMeasurements(oldId);
-      const newMeasurements = getMeasurements(id);
+      const newMeasurements = getMeasurements(idNumber);
       const oldLatest = readJSON(localStorage, latestAssessmentKey(oldId), null);
       const merged = [...oldMeasurements, ...newMeasurements]
         .filter((record, index, records) => records.findIndex(item => item.date === record.date) === index)
         .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 
-      if(merged.length) localStorage.setItem(measurementsKey(id), JSON.stringify(merged));
+      if(merged.length) localStorage.setItem(measurementsKey(idNumber), JSON.stringify(merged));
       if(oldLatest) {
-        localStorage.setItem(latestAssessmentKey(id), JSON.stringify({
+        localStorage.setItem(latestAssessmentKey(idNumber), JSON.stringify({
           ...oldLatest,
-          userId: id,
+          userId: idNumber,
           user: user.name || oldLatest.user
         }));
       }
@@ -212,7 +328,7 @@
   }
 
   function saveAssessment(user, assessment) {
-    const id = normalizeId(user && (user.idNumber || user.id || user.studentNumber));
+    const id = getPublicIdNumber(user);
     if(!id) throw new Error('Sign in before saving an assessment.');
 
     const record = {
@@ -233,7 +349,7 @@
 
   function getLatestAssessment(user) {
     if(!user) return null;
-    const id = normalizeId(user.idNumber || user.id || user.studentNumber);
+    const id = getPublicIdNumber(user);
     if(!id) return null;
 
     const current = readJSON(localStorage, latestAssessmentKey(id), null);
@@ -265,10 +381,56 @@
       : `${prefix}index.html`;
   }
 
+  async function fetchAssessmentsFromDatabase(user) {
+    if (!window.MEDIPOINT_SUPABASE_URL || !window.MEDIPOINT_SUPABASE_ANON_KEY) {
+      return null;
+    }
+
+    const idNumber = getPublicIdNumber(user);
+    const profileId = getProfileId(user);
+    if (!idNumber && !profileId) {
+      return [];
+    }
+
+    try {
+      const response = await fetch(`${window.MEDIPOINT_SUPABASE_URL}/functions/v1/data-retrieval`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${window.MEDIPOINT_SUPABASE_ANON_KEY}`,
+          apikey: window.MEDIPOINT_SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({
+          action: 'profile',
+          idNumber,
+          profileId,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && data && Array.isArray(data.assessments)) {
+        return data.assessments;
+      }
+
+      console.warn(
+        'Unable to load assessments from Supabase.',
+        data.error || `HTTP ${response.status}`,
+      );
+    } catch (error) {
+      console.warn('Unable to load assessments from Supabase.', error);
+    }
+
+    return [];
+  }
+
   window.MediPoint = {
     parseJSON,
     readJSON,
     normalizeId,
+    isUuid,
+    getPublicIdNumber,
+    getProfileId,
+    repairUserIdentity,
     userKey,
     measurementsKey,
     latestAssessmentKey,
@@ -286,6 +448,7 @@
     authenticatePortalIdentity,
     saveUser,
     getMeasurements,
+    fetchAssessmentsFromDatabase,
     saveAssessment,
     getLatestAssessment,
     escapeHTML,

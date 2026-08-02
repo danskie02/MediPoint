@@ -67,7 +67,7 @@ function isProfileReady(profile){
     return false;
   }
 
-  const idValue = profile.id || profile.studentNumber || profile.idNumber;
+  const idValue = MediPoint.getPublicIdNumber(profile);
 
   return Boolean(
     profile.profileComplete &&
@@ -81,10 +81,6 @@ function isProfileReady(profile){
   );
 }
 
-if(currentPage !== 'user-info.html' && !isProfileReady(currentUser)){
-  window.location.href = 'user-info.html';
-}
-
 const defaultUser = {
   name: 'Guest User',
   role: 'Student',
@@ -92,39 +88,63 @@ const defaultUser = {
   email: 'Not available'
 };
 
-const user = currentUser || defaultUser;
-const userId = user.id || user.studentNumber || user.idNumber || 'guest';
-const storageKey = `measurements_${userId}`;
+let user = currentUser || defaultUser;
+let userId = 'guest';
 
-setText(userShort, user.name || 'Guest User');
-setText(userInitials, getInitials(user.name || 'Guest User'));
-setText(sideRole, formatRole(user.role || 'student'));
-setText(welcomeName, user.name || 'Guest');
-setText(pName, user.name || 'Guest User');
-setText(pRole, formatRole(user.role || 'student'));
-setText(pId, userId);
-setText(pEmail, user.email || 'Not available');
-setText(todayStamp, new Date().toLocaleDateString('en-US', {
-  month:'short',
-  day:'numeric',
-  year:'numeric'
-}));
+function renderUserDetails(){
+  userId = MediPoint.getPublicIdNumber(user) || 'guest';
 
-// Profile page: identity header + detail groups
-setText(userInitialsLg, getInitials(user.name || 'Guest User'));
-setText(pRolePill, formatRole(user.role || 'student'));
-setText(pIdMeta, userId && userId !== 'guest' ? `ID ${userId}` : 'ID not available');
-setText(pMemberSince, user.memberSince ? `Member since ${formatDate(user.memberSince)}` : 'Member since -');
-setText(pDob, user.birthday || user.dob || user.birthDate ? formatDate(user.birthday || user.dob || user.birthDate) : 'Not available');
-setText(pGender, user.gender || 'Not available');
-setText(pBarangay, user.barangay || 'Not available');
-setText(pCity, user.city || 'Not available');
-setText(pProvince, user.province || 'Not available');
-setText(pPhone, user.phone || user.mobile || 'Not available');
-setText(pEmergency, user.emergencyContact || user.emergencyContactName || 'Not available');
-setText(pEmergencyPhone, user.emergencyPhone || 'Not available');
-setText(pDept, user.program || user.departmentOffice || user.department || user.section || 'Not available');
-setText(pKiosk, user.kiosk || user.registeredKiosk || 'Not available');
+  setText(userShort, user.name || 'Guest User');
+  setText(userInitials, getInitials(user.name || 'Guest User'));
+  setText(sideRole, formatRole(user.role || 'student'));
+  setText(welcomeName, user.name || 'Guest');
+  setText(pName, user.name || 'Guest User');
+  setText(pRole, formatRole(user.role || 'student'));
+  setText(pId, userId);
+  setText(pEmail, user.email || 'Not available');
+  setText(todayStamp, new Date().toLocaleDateString('en-US', {
+    month:'short',
+    day:'numeric',
+    year:'numeric'
+  }));
+
+  setText(userInitialsLg, getInitials(user.name || 'Guest User'));
+  setText(pRolePill, formatRole(user.role || 'student'));
+  setText(pIdMeta, userId && userId !== 'guest' ? `ID ${userId}` : 'ID not available');
+  setText(pMemberSince, user.memberSince ? `Member since ${formatDate(user.memberSince)}` : 'Member since -');
+  setText(pDob, user.birthday || user.dob || user.birthDate ? formatDate(user.birthday || user.dob || user.birthDate) : 'Not available');
+  setText(pGender, user.gender || 'Not available');
+  setText(pBarangay, user.barangay || 'Not available');
+  setText(pCity, user.city || 'Not available');
+  setText(pProvince, user.province || 'Not available');
+  setText(pPhone, user.phone || user.mobile || 'Not available');
+  setText(pEmergency, user.emergencyContact || user.emergencyContactName || 'Not available');
+  setText(pEmergencyPhone, user.emergencyPhone || 'Not available');
+  setText(pDept, user.program || user.departmentOffice || user.department || user.section || 'Not available');
+  setText(pKiosk, user.kiosk || user.registeredKiosk || 'Not available');
+}
+
+async function bootstrapPortal(){
+  user = await MediPoint.repairUserIdentity(currentUser || defaultUser);
+
+  if(currentPage !== 'user-info.html' && !isProfileReady(user)){
+    window.location.href = 'user-info.html';
+    return;
+  }
+
+  renderUserDetails();
+
+  if(userInfoForm){
+    fillUserInfoForm();
+  }
+
+  activateCurrentNav();
+  void renderCounts();
+  void renderResults();
+  void renderAssessment();
+  void renderHistory();
+  void renderProfileSnapshot();
+}
 
 function setText(element, value){
   if(element){
@@ -173,37 +193,18 @@ function formatDate(value){
 }
 
 async function getMeasurements(){
-  const current = MediPoint.getCurrentUser();
-  if(!current || !current.idNumber) {
+  const current = await MediPoint.repairUserIdentity(MediPoint.getCurrentUser());
+  const idNumber = MediPoint.getPublicIdNumber(current);
+  if(!current || !idNumber) {
     return [];
   }
 
-  try {
-    if(window.MEDIPOINT_SUPABASE_URL && window.MEDIPOINT_SUPABASE_ANON_KEY) {
-      const response = await fetch(`${window.MEDIPOINT_SUPABASE_URL}/functions/v1/data-retrieval`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${window.MEDIPOINT_SUPABASE_ANON_KEY}`,
-          apikey: window.MEDIPOINT_SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({
-          action: 'profile',
-          idNumber: current.idNumber,
-        }),
-      });
-
-      const data = await response.json().catch(() => ({}));
-      if(response.ok && data && Array.isArray(data.assessments)) {
-        return data.assessments;
-      }
-    }
-  } catch (error) {
-    console.warn('Unable to load portal assessments from Supabase.', error);
+  const remoteAssessments = await MediPoint.fetchAssessmentsFromDatabase(current);
+  if (remoteAssessments !== null) {
+    return remoteAssessments;
   }
 
-  MediPoint.getLatestAssessment(current);
-  return MediPoint.getMeasurements(userId);
+  return MediPoint.getMeasurements(idNumber);
 }
 
 function normalizeStatus(status){
@@ -521,7 +522,7 @@ function fillUserInfoForm(){
     setupName: user.name || '',
     setupRole: normalizeRole(user.role),
     setupRoleValue: normalizeRole(user.role),
-    setupId: user.id || user.studentNumber || user.idNumber || '',
+    setupId: MediPoint.getPublicIdNumber(user) || '',
     setupEmail: user.email || '',
     setupBirthday: user.birthday || user.dob || user.birthDate || '',
     setupGender: user.gender || '',
@@ -559,6 +560,62 @@ function fillUserInfoForm(){
 
 function saveUserInfo(event){
   event.preventDefault();
+  void submitUserInfo(event);
+}
+
+function mergeSavedProfile(localProfile, serverProfile) {
+  if (!serverProfile) {
+    return localProfile;
+  }
+
+  const merged = {
+    ...localProfile,
+    profileId: serverProfile.id || localProfile.profileId,
+    id: serverProfile.id || localProfile.id,
+    idNumber: serverProfile.idNumber || localProfile.idNumber,
+    name: serverProfile.name || localProfile.name,
+    email: serverProfile.email || localProfile.email,
+    role: serverProfile.role || localProfile.role,
+    birthday: serverProfile.birthday || localProfile.birthday,
+    gender: serverProfile.gender || localProfile.gender,
+    phone: serverProfile.phone || localProfile.phone,
+    emergencyContact: serverProfile.emergencyContact || localProfile.emergencyContact,
+    guardianRelationship: serverProfile.guardianRelationship || localProfile.guardianRelationship,
+    emergencyPhone: serverProfile.emergencyPhone || localProfile.emergencyPhone,
+    program: serverProfile.program || localProfile.program,
+    departmentOffice: serverProfile.departmentOffice || localProfile.departmentOffice,
+    profileComplete: serverProfile.profileComplete ?? localProfile.profileComplete,
+    memberSince: serverProfile.memberSince || localProfile.memberSince
+  };
+
+  const detailFields = [
+    'barangay',
+    'city',
+    'province',
+    'presentBarangay',
+    'presentCity',
+    'presentProvince',
+    'guardianRelationship',
+    'otherMedicalHistory',
+    'previousSurgeries',
+    'previousSurgeryDate',
+    'currentMedications',
+    'knownAllergies'
+  ];
+
+  detailFields.forEach(field => {
+    merged[field] = serverProfile[field] || localProfile[field] || '';
+  });
+
+  merged.medicalHistory = Array.isArray(serverProfile.medicalHistory) && serverProfile.medicalHistory.length
+    ? serverProfile.medicalHistory
+    : (Array.isArray(localProfile.medicalHistory) ? localProfile.medicalHistory : []);
+
+  return merged;
+}
+
+async function submitUserInfo(event){
+  event.preventDefault();
 
   const formData = new FormData(userInfoForm);
   const idNumber = String(formData.get('idNumber') || '').trim();
@@ -577,6 +634,7 @@ function saveUserInfo(event){
   const completedProfile = {
     ...user,
     idNumber,
+    profileId: MediPoint.getProfileId(user) || user.profileId || user.id || '',
     name,
     role,
     email,
@@ -610,9 +668,37 @@ function saveUserInfo(event){
     return;
   }
 
-  MediPoint.saveUser(completedProfile, userId);
-  MediPoint.setCurrentUser(completedProfile);
+  setText(setupNotice, 'Saving your profile...');
 
+  try {
+    if(typeof window.MediPointKioskApi !== 'undefined' && window.MEDIPOINT_SUPABASE_URL && window.MEDIPOINT_SUPABASE_ANON_KEY) {
+      const result = await window.MediPointKioskApi.updateProfile(completedProfile, {
+        kioskId: window.MEDIPOINT_KIOSK_ID || ''
+      });
+
+      if(result && result.user) {
+        Object.assign(
+          completedProfile,
+          mergeSavedProfile(completedProfile, result.user)
+        );
+      }
+    }
+  } catch (error) {
+    setText(setupNotice, error && error.message ? error.message : 'Could not save your profile to the database.');
+    return;
+  }
+
+  MediPoint.saveUser(completedProfile, userId);
+
+  if(completedProfile.role !== 'doctor' && completedProfile.email) {
+    try {
+      await MediPoint.savePortalAccount(completedProfile);
+    } catch (error) {
+      console.warn('Could not sync portal account locally.', error);
+    }
+  }
+
+  MediPoint.setCurrentUser(completedProfile);
   window.location.href = 'portal.html';
 }
 
@@ -655,13 +741,7 @@ if(reportIssueBtn){
 }
 
 if(userInfoForm){
-  fillUserInfoForm();
   userInfoForm.addEventListener('submit', saveUserInfo);
 }
 
-activateCurrentNav();
-void renderCounts();
-void renderResults();
-void renderAssessment();
-void renderHistory();
-void renderProfileSnapshot();
+void bootstrapPortal();

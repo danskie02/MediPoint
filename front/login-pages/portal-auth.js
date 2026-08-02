@@ -38,6 +38,36 @@
     window.location.href = user.role === 'doctor' ? '../system/doctor-portal.html' : '../system/portal.html';
   }
 
+  async function persistPortalSession(user) {
+    const sessionUser = {
+      ...user,
+      idNumber: MediPoint.getPublicIdNumber(user) || user.idNumber,
+      profileId: MediPoint.getProfileId(user) || user.id || '',
+      accountType: user.accountType || 'portal'
+    };
+
+    MediPoint.saveUser(sessionUser);
+
+    if (sessionUser.role !== 'doctor' && sessionUser.email) {
+      try {
+        await MediPoint.savePortalAccount(sessionUser);
+      } catch (error) {
+        console.warn('Could not save portal account locally.', error);
+      }
+    }
+  }
+
+  function authenticateLocalPortalUser(name, idNumber) {
+    const user = MediPoint.authenticatePortalIdentity(name, idNumber);
+    if (!user) {
+      return { error: 'Full name or ID number is incorrect.' };
+    }
+    if (user.role === 'doctor' && !user.managedAccount) {
+      return { error: 'This doctor account was not issued by MediPoint administration.' };
+    }
+    return { user };
+  }
+
   loginTab.addEventListener('click', () => showView('login'));
   signupTab.addEventListener('click', () => showView('signup'));
 
@@ -56,6 +86,7 @@
           });
 
           if(result && result.user) {
+            await persistPortalSession(result.user);
             showMessage(message, 'Account verified. Opening your portal...', false);
             enterPortal(result.user);
             return;
@@ -66,23 +97,17 @@
             return;
           }
         } catch (error) {
-          console.warn('Supabase portal login failed.', error);
-          showMessage(message, error && error.message ? error.message : 'Portal login failed.', true);
-          return;
+          console.warn('Supabase portal login failed; trying local account.', error);
         }
       }
 
-      const user = MediPoint.authenticatePortalIdentity(data.get('name'), data.get('idNumber'));
-      if(!user) {
-        showMessage(message, 'Full name or ID number is incorrect.', true);
-        return;
-      }
-      if(user.role === 'doctor' && !user.managedAccount) {
-        showMessage(message, 'This doctor account was not issued by MediPoint administration.', true);
+      const localResult = authenticateLocalPortalUser(data.get('name'), data.get('idNumber'));
+      if (localResult.error) {
+        showMessage(message, localResult.error, true);
         return;
       }
       showMessage(message, 'Account verified. Opening your portal...', false);
-      enterPortal(user);
+      enterPortal(localResult.user);
     } catch(error) {
       showMessage(message, 'Portal login is unavailable in this browser.', true);
     }

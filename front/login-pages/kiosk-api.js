@@ -102,6 +102,36 @@
     }, options);
   }
 
+  async function updateProfile(profile, options) {
+    return callEdgeFunction('update-profile', {
+      profileId: profile?.profileId ?? profile?.id ?? '',
+      idNumber: profile?.idNumber ?? profile?.studentNumber ?? '',
+      name: profile?.name ?? '',
+      email: profile?.email ?? '',
+      role: profile?.role ?? '',
+      birthday: profile?.birthday ?? '',
+      gender: profile?.gender ?? '',
+      phone: profile?.phone ?? '',
+      emergencyContact: profile?.emergencyContact ?? '',
+      emergencyPhone: profile?.emergencyPhone ?? '',
+      department: profile?.program ?? profile?.departmentOffice ?? profile?.department ?? '',
+      barangay: profile?.barangay ?? '',
+      city: profile?.city ?? '',
+      province: profile?.province ?? '',
+      presentBarangay: profile?.presentBarangay ?? '',
+      presentCity: profile?.presentCity ?? '',
+      presentProvince: profile?.presentProvince ?? '',
+      guardianRelationship: profile?.guardianRelationship ?? '',
+      medicalHistory: Array.isArray(profile?.medicalHistory) ? profile.medicalHistory : [],
+      otherMedicalHistory: profile?.otherMedicalHistory ?? '',
+      previousSurgeries: profile?.previousSurgeries ?? '',
+      previousSurgeryDate: profile?.previousSurgeryDate ?? '',
+      currentMedications: profile?.currentMedications ?? '',
+      knownAllergies: profile?.knownAllergies ?? '',
+      kioskId: options?.kioskId ?? '',
+    }, options);
+  }
+
   window.MediPointKioskApi = {
     loginWithQrCode,
     loginWithId,
@@ -109,6 +139,7 @@
     portalAuth,
     retrieveData,
     storeAssessment,
+    updateProfile,
     callEdgeFunction,
   };
 })();
