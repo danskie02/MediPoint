@@ -274,6 +274,24 @@
         </section>
 
 
+        <!-- CareMate AI Recommendation -->
+
+        <section
+            class="clinic-recommendation caremate-recommendation hidden"
+            id="caremateRecommendation"
+        >
+            <div class="clinic-icon" aria-hidden="true">AI</div>
+
+            <div>
+                <h2 id="caremateTitle">CareMate AI Recommendation</h2>
+
+                <p id="caremateSummary">
+                    The CareMate model is analyzing your recorded vitals.
+                </p>
+            </div>
+        </section>
+
+
         <!-- Clinic Recommendation -->
 
         <section
@@ -338,7 +356,9 @@
          JAVASCRIPT
     ====================================================== -->
 
+    <script src="../login-pages/medipoint-config.js"></script>
     <script src="../shared.js"></script>
+    <script src="../caremate.js"></script>
     <script src="kiosk-audio.js"></script>
 
     <script>
@@ -372,6 +392,15 @@
 
             const clinicRecommendation =
                 document.getElementById("clinicRecommendation");
+
+            const caremateRecommendation =
+                document.getElementById("caremateRecommendation");
+
+            const caremateTitle =
+                document.getElementById("caremateTitle");
+
+            const caremateSummary =
+                document.getElementById("caremateSummary");
 
             const backHomeBtn =
                 document.getElementById("backHomeBtn");
@@ -836,9 +865,54 @@
 
 
             /*
+             * Display CareMate AI recommendation when available.
+             */
+            function renderCareMate(caremate) {
+                if (
+                    !caremateRecommendation ||
+                    !caremateTitle ||
+                    !caremateSummary ||
+                    !window.MediPointCareMate
+                ) {
+                    return false;
+                }
+
+                const payload = window.MediPointCareMate.extractCareMateFromAssessment({
+                    caremate: caremate
+                });
+
+                if (!payload || !payload.recommendation) {
+                    caremateRecommendation.classList.add("hidden");
+                    return false;
+                }
+
+                const copy = window.MediPointCareMate.getRecommendationCopy(
+                    payload.recommendation
+                );
+
+                caremateTitle.textContent =
+                    "CareMate: " + copy.label;
+
+                caremateSummary.textContent = copy.summary;
+
+                caremateRecommendation.classList.remove("hidden");
+                caremateRecommendation.classList.remove(
+                    "caremate-normal",
+                    "caremate-warning",
+                    "caremate-critical"
+                );
+                caremateRecommendation.classList.add(
+                    "caremate-" + copy.severity
+                );
+
+                return true;
+            }
+
+
+            /*
              * Display assessment information.
              */
-            function renderAssessment(results) {
+            function renderAssessment(results, caremate) {
                 const items =
                     createAssessmentItems(results);
 
@@ -847,7 +921,29 @@
                         return item.attention;
                     }).length;
 
-                if (attentionCount > 0) {
+                const hasCareMate = renderCareMate(caremate);
+                const caremateCopy = hasCareMate && window.MediPointCareMate
+                    ? window.MediPointCareMate.getRecommendationCopy(
+                        window.MediPointCareMate.extractCareMateFromAssessment({
+                            caremate: caremate
+                        }).recommendation
+                    )
+                    : null;
+
+                if (hasCareMate && caremateCopy) {
+                    assessmentSummary.textContent =
+                        "CareMate analyzed your vitals and recommends: " +
+                        caremateCopy.label + ".";
+
+                    if (
+                        caremateCopy.severity === "critical" ||
+                        attentionCount > 0
+                    ) {
+                        clinicRecommendation.classList.remove("hidden");
+                    } else {
+                        clinicRecommendation.classList.add("hidden");
+                    }
+                } else if (attentionCount > 0) {
                     assessmentSummary.textContent =
                         `${attentionCount} recorded measurement${
                             attentionCount === 1 ? "" : "s"
@@ -885,9 +981,16 @@
             /*
              * Display lifestyle suggestions.
              */
-            function renderInterventions(results) {
-                const suggestions =
-                    createInterventions(results);
+            function renderInterventions(results, caremate) {
+                const payload = window.MediPointCareMate
+                    ? window.MediPointCareMate.extractCareMateFromAssessment({
+                        caremate: caremate
+                    })
+                    : null;
+
+                const suggestions = payload && payload.recommendation && window.MediPointCareMate
+                    ? window.MediPointCareMate.recommendationBullets(payload.recommendation)
+                    : createInterventions(results);
 
                 interventionList.innerHTML =
                     suggestions.map(function (suggestion) {
@@ -989,8 +1092,8 @@
                             createResultTile
                         ).join("");
 
-                    renderAssessment(results);
-                    renderInterventions(results);
+                    renderAssessment(results, assessment.caremate);
+                    renderInterventions(results, assessment.caremate);
 
                     MediPointKioskAudio.speak(
                         summaryStatus.textContent +

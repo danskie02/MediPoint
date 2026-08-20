@@ -52,15 +52,23 @@ function formatRole(role) {
 function normalizeStatus(status) {
   const text = String(status || '').toLowerCase();
 
-  if(text.includes('critical') || text.includes('high') || text.includes('fever')){
+  if(text.includes('critical') || text.includes('high fever')){
     return 'Critical';
   }
 
-  if(text.includes('warning') || text.includes('low') || text.includes('attention')){
+  if(text.includes('warning') || text.includes('attention') || text.includes('elevated')){
     return 'Warning';
   }
 
-  return 'Normal';
+  if(text.includes('normal')){
+    return 'Normal';
+  }
+
+  if(text.includes('recorded')){
+    return 'Recorded';
+  }
+
+  return 'Recorded';
 }
 
 function splitWeightBmi(results) {
@@ -145,7 +153,33 @@ async function getMeasurementsFor(profile) {
 async function getLatestResults(profile) {
   const measurements = await getMeasurementsFor(profile);
   const latest = measurements[0] || { results: [] };
-  return splitWeightBmi(latest.results || []);
+  const results = latest.results || [];
+  const stripped = window.MediPointCareMate
+    ? window.MediPointCareMate.stripCareMateResults(results)
+    : results;
+  return splitWeightBmi(stripped);
+}
+
+function getLatestCaremate(profile, measurements) {
+  const latest = measurements && measurements[0] ? measurements[0] : null;
+  if (!latest) return null;
+
+  if (window.MediPointCareMate) {
+    return window.MediPointCareMate.extractCareMateFromAssessment(latest);
+  }
+
+  return latest.caremate || null;
+}
+
+function getCaremateStatus(caremate) {
+  if (!caremate || !caremate.recommendation || !window.MediPointCareMate) {
+    return null;
+  }
+
+  const copy = window.MediPointCareMate.getRecommendationCopy(caremate.recommendation);
+  if (copy.severity === 'critical') return 'Critical';
+  if (copy.severity === 'warning') return 'Warning';
+  return 'Normal';
 }
 
 function getOverallStatus(results) {
@@ -171,9 +205,11 @@ async function buildPatientList() {
   const profiles = await fetchDoctorProfiles();
 
   const patients = await Promise.all(profiles.map(async profile => {
-    const latestResults = await getLatestResults(profile);
     const measurements = await getMeasurementsFor(profile);
-    const status = getOverallStatus(latestResults);
+    const latestResults = await getLatestResults(profile);
+    const caremate = getLatestCaremate(profile, measurements);
+    const caremateStatus = getCaremateStatus(caremate);
+    const status = caremateStatus || getOverallStatus(latestResults);
     const lastRecord = measurements[0];
     const lastCheckin = lastRecord && lastRecord.date
       ? new Date(lastRecord.date).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
@@ -182,6 +218,7 @@ async function buildPatientList() {
     return {
       ...profile,
       latestResults,
+      caremate,
       status,
       lastCheckin,
       patientId: MediPoint.getPublicIdNumber(profile) || profile.email || `${profile.name || 'patient'}-${profiles.indexOf(profile)}`
@@ -261,11 +298,13 @@ function renderPatientDetail(patient) {
       `).join('')
     : '<div class="detail-item"><strong>No results recorded</strong><p>This patient has not completed a kiosk assessment yet.</p></div>';
 
-  const recommendation = patient.status === 'Critical'
-    ? 'Escalate to clinician review and prepare for immediate follow-up.'
-    : patient.status === 'Warning'
-      ? 'Continue monitoring and schedule a follow-up check-in.'
-      : 'No urgent follow-up required. Routine review is sufficient.';
+  const recommendation = patient.caremate && patient.caremate.recommendation && window.MediPointCareMate
+    ? window.MediPointCareMate.getRecommendationCopy(patient.caremate.recommendation).summary
+    : patient.status === 'Critical'
+      ? 'Escalate to clinician review and prepare for immediate follow-up.'
+      : patient.status === 'Warning'
+        ? 'Continue monitoring and schedule a follow-up check-in.'
+        : 'No urgent follow-up required. Routine review is sufficient.';
 
   patientDetail.innerHTML = `
     <div class="detail-header">

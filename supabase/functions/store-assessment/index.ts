@@ -1,14 +1,21 @@
 /**
  * MediPoint assessment storage (Supabase Edge Function)
  *
- * Receives assessment results from the kiosk and stores them in the
- * assessment_results table for later retrieval by the portal and doctor views.
+ * Persists kiosk measurements into assessments + assessment_results.
  */
 
 import { corsHeaders, jsonResponse } from '../_shared/cors.js';
 import { createAdminClient } from '../_shared/supabase-admin.js';
+import {
+  buildAssessmentInsertPayload,
+  buildAssessmentResultRows,
+  buildCareMateResultRow,
+  extractCareMatePayload,
+  stripCareMatePayloads,
+} from '../_shared/assessment-db.js';
+import { buildCareMateResult, requestCareMatePrediction } from '../_shared/caremate.js';
 
-function normalizeText(value: unknown) {
+function normalizeText(value) {
   return String(value || '').trim();
 }
 
@@ -21,7 +28,7 @@ Deno.serve(async (request) => {
     return jsonResponse({ error: 'Method not allowed.' }, 405);
   }
 
-  let body: Record<string, unknown>;
+  let body;
   try {
     body = await request.json();
   } catch (_error) {
@@ -30,9 +37,11 @@ Deno.serve(async (request) => {
 
   const profileId = normalizeText(body.profileId ?? '');
   const idNumber = normalizeText(body.idNumber ?? body.studentNumber ?? '');
-  const userName = normalizeText(body.userName ?? body.user ?? '');
   const program = normalizeText(body.program ?? body.departmentOffice ?? '');
-  const results = Array.isArray(body.results) ? body.results : [];
+  const kioskId = normalizeText(body.kioskId ?? request.headers.get('x-kiosk-id') ?? '');
+  const rawResults = Array.isArray(body.results) ? body.results : [];
+  const vitals = stripCareMatePayloads(rawResults);
+  let caremate = extractCareMatePayload(rawResults);
 
   let supabase;
   try {
@@ -60,23 +69,77 @@ Deno.serve(async (request) => {
     return jsonResponse({ error: 'Profile not found.' }, 404);
   }
 
-  const insertPayload = {
-    profile_id: resolvedProfileId,
-    user_name: userName,
-    program,
-    results,
-    created_at: new Date().toISOString(),
-  };
+  if (!caremate) {
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('birthday, gender')
+      .eq('id', resolvedProfileId)
+      .maybeSingle();
 
-  const { data, error } = await supabase
-    .from('assessment_results')
-    .insert(insertPayload)
-    .select()
-    .single();
+    const prediction = await requestCareMatePrediction({
+      results: vitals,
+      birthday: profileData?.birthday || '',
+      gender: profileData?.gender || '',
+    });
 
-  if (error) {
-    return jsonResponse({ error: error.message || 'Unable to store assessment.' }, 500);
+    const caremateResult = buildCareMateResult(prediction);
+    if (caremateResult) {
+      caremate = {
+        recommendation: caremateResult.recommendation,
+        probabilities: caremateResult.probabilities || {},
+        features: caremateResult.features || null,
+        generatedAt: caremateResult.generatedAt || new Date().toISOString(),
+      };
+    }
   }
 
-  return jsonResponse({ ok: true, assessment: data });
+  const assessedAt = new Date().toISOString();
+  const { data: assessment, error: assessmentError } = await supabase
+    .from('assessments')
+    .insert(buildAssessmentInsertPayload({
+      profileId: resolvedProfileId,
+      kioskId,
+      program,
+      results: vitals,
+      assessedAt,
+    }))
+    .select('*')
+    .single();
+
+  if (assessmentError || !assessment) {
+    return jsonResponse({
+      error: assessmentError?.message || 'Unable to create assessment record.',
+    }, 500);
+  }
+
+  const resultRows = buildAssessmentResultRows(assessment.id, vitals);
+  const caremateRow = buildCareMateResultRow(assessment.id, caremate, resultRows.length);
+  if (caremateRow) {
+    resultRows.push(caremateRow);
+  }
+
+  if (resultRows.length) {
+    const { error: resultsError } = await supabase
+      .from('assessment_results')
+      .insert(resultRows);
+
+    if (resultsError) {
+      await supabase.from('assessments').delete().eq('id', assessment.id);
+      return jsonResponse({
+        error: resultsError.message || 'Unable to store assessment results.',
+      }, 500);
+    }
+  }
+
+  return jsonResponse({
+    ok: true,
+    assessment: {
+      id: assessment.id,
+      profile_id: assessment.profile_id,
+      assessed_at: assessment.assessed_at,
+      is_simulated: assessment.is_simulated,
+      result_count: resultRows.length,
+      caremate,
+    },
+  });
 });

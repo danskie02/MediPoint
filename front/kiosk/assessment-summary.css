@@ -708,6 +708,24 @@ img {
     line-height: 1.6;
 }
 
+.caremate-recommendation.caremate-normal {
+    color: #166534;
+    background: #ecfdf3;
+    border-color: #86efac;
+}
+
+.caremate-recommendation.caremate-warning {
+    color: #744600;
+    background: var(--warning-soft);
+    border-color: #e9c477;
+}
+
+.caremate-recommendation.caremate-critical {
+    color: #991b1b;
+    background: #fef2f2;
+    border-color: #fca5a5;
+}
+
 
 /* =========================================================
    PRINT SECTION

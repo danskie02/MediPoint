@@ -331,12 +331,19 @@
     const id = getPublicIdNumber(user);
     if(!id) throw new Error('Sign in before saving an assessment.');
 
+    const rawResults = Array.isArray(assessment.results) ? assessment.results : [];
+    const caremate = assessment.caremate || null;
+    const results = window.MediPointCareMate
+      ? window.MediPointCareMate.stripCareMateResults(rawResults)
+      : rawResults;
+
     const record = {
       userId: id,
       user: user.name || 'Unknown User',
       program: user.program || user.departmentOffice || 'Not specified',
       date: assessment.date || new Date().toISOString(),
-      results: Array.isArray(assessment.results) ? assessment.results : []
+      results,
+      caremate
     };
 
     const records = getMeasurements(id).filter(item => item.date !== record.date);

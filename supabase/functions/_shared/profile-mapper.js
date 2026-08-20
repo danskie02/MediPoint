@@ -10,6 +10,7 @@ export function normalizeRole(value) {
 export function mapProfileRowToUser(profile, accountType = 'portal') {
   return {
     id: profile.id,
+    profileId: profile.id,
     idNumber: profile.id_number,
     name: profile.full_name,
     email: profile.email || '',

@@ -4,9 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>MediPoint - Tracking Portal</title>
-  <link rel="stylesheet" href="system-base.css" />
-  <link rel="stylesheet" href="system-components.css" />
-  <link rel="stylesheet" href="portal.css" />
+  <link rel="stylesheet" href="system-base.css?v=3" />
+  <link rel="stylesheet" href="system-components.css?v=3" />
+  <link rel="stylesheet" href="portal.css?v=3" />
 </head>
 
 <body>
@@ -59,8 +59,8 @@
             <span>Monitor kiosk health records, review trends, and export your latest measurements.</span>
           </div>
 
-          <div class="hero-summary">
-            <small>Overall Status</small>
+          <div class="hero-summary" id="heroSummary">
+            <p class="status-label">Overall Status</p>
             <strong id="heroStatus">No Data</strong>
             <span id="heroText">Complete kiosk measurements first.</span>
           </div>
@@ -129,13 +129,10 @@
               </div>
             </div>
 
-            <div class="overall-card" id="overallCard">
-              <div class="check-icon">OK</div>
-              <div>
-                <small>Overall Status</small>
-                <strong id="overallStatus">No Data</strong>
-                <p id="overallText">Complete kiosk measurements first.</p>
-              </div>
+            <div class="portal-status-card" id="overallCard">
+              <p class="status-label">Overall Status</p>
+              <strong id="overallStatus">No Data</strong>
+              <span class="status-desc" id="overallText">Complete kiosk measurements first.</span>
             </div>
 
             <div class="recommendations">
@@ -165,6 +162,7 @@
 
   <script src="../login-pages/medipoint-config.js"></script>
   <script src="../shared.js"></script>
+  <script src="../caremate.js"></script>
   <script src="portal.js"></script>
 </body>
 </html>

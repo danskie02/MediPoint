@@ -44,7 +44,6 @@ const allCount = document.getElementById('allCount');
 
 const overallStatus = document.getElementById('overallStatus');
 const overallText = document.getElementById('overallText');
-const overallCard = document.getElementById('overallCard');
 const recommendationList = document.getElementById('recommendationList');
 const heroStatus = document.getElementById('heroStatus');
 const heroText = document.getElementById('heroText');
@@ -210,15 +209,34 @@ async function getMeasurements(){
 function normalizeStatus(status){
   const text = String(status || '').toLowerCase();
 
-  if(text.includes('critical') || text.includes('high') || text.includes('fever')){
+  if(text.includes('critical') || text.includes('high fever')){
     return 'Critical';
   }
 
-  if(text.includes('warning') || text.includes('low') || text.includes('attention')){
+  if(text.includes('warning') || text.includes('attention') || text.includes('elevated')){
     return 'Warning';
   }
 
-  return 'Normal';
+  if(text.includes('normal')){
+    return 'Normal';
+  }
+
+  if(text.includes('recorded')){
+    return 'Recorded';
+  }
+
+  return 'Recorded';
+}
+
+function getDisplayStatus(status){
+  const text = String(status || '').trim();
+  return text || 'Recorded';
+}
+
+function getStatusClass(status){
+  const normalized = normalizeStatus(status);
+  if(normalized === 'Recorded') return 'recorded';
+  return normalized.toLowerCase();
 }
 
 function splitWeightBmi(results){
@@ -255,6 +273,24 @@ function splitWeightBmi(results){
   return separated;
 }
 
+async function getLatestAssessmentRecord(){
+  const measurements = await getMeasurements();
+  return measurements.length ? measurements[0] : null;
+}
+
+async function getLatestCaremate(){
+  const latest = await getLatestAssessmentRecord();
+  if(!latest){
+    return null;
+  }
+
+  if(window.MediPointCareMate){
+    return window.MediPointCareMate.extractCareMateFromAssessment(latest);
+  }
+
+  return latest.caremate || null;
+}
+
 async function getLatestResults(){
   const measurements = await getMeasurements();
 
@@ -262,7 +298,10 @@ async function getLatestResults(){
     return [];
   }
 
-  return splitWeightBmi(measurements[0].results || []);
+  const results = measurements[0].results || [];
+  return window.MediPointCareMate
+    ? window.MediPointCareMate.stripCareMateResults(splitWeightBmi(results))
+    : splitWeightBmi(results);
 }
 
 async function renderResults(){
@@ -287,14 +326,14 @@ async function renderResults(){
   }
 
   resultsGrid.innerHTML = filteredResults.map(result => {
-    const status = normalizeStatus(result.status);
-    const statusClass = status.toLowerCase();
+    const statusClass = getStatusClass(result.status);
+    const displayStatus = getDisplayStatus(result.status);
 
     return `
       <article class="result-card ${statusClass}">
         <div class="result-top">
           <h3>${MediPoint.escapeHTML(result.title)}</h3>
-          <em>${status}</em>
+          <em>${MediPoint.escapeHTML(displayStatus)}</em>
         </div>
 
         <div class="result-value">
@@ -325,6 +364,9 @@ async function renderCounts(){
     if(status === 'Normal') normal++;
     if(status === 'Warning') warning++;
     if(status === 'Critical') critical++;
+    if(status === 'Recorded') {
+      // Neutral measurements are tracked separately from "Normal" vitals.
+    }
   });
 
   setText(normalCount, normal);
@@ -338,10 +380,6 @@ function setAssessmentState(status, text, variant){
   setText(overallText, text);
   setText(heroStatus, status);
   setText(heroText, text);
-
-  if(overallCard){
-    overallCard.className = variant ? `overall-card ${variant}` : 'overall-card';
-  }
 }
 
 async function renderAssessment(){
@@ -350,10 +388,25 @@ async function renderAssessment(){
   }
 
   const latestResults = await getLatestResults();
+  const caremate = await getLatestCaremate();
 
   if(!latestResults.length){
     setAssessmentState('No Data', 'Complete kiosk measurements first.', '');
     setHTML(recommendationList, `<li>Complete your kiosk assessment to view recommendations.</li>`);
+    return;
+  }
+
+  if(caremate && caremate.recommendation && window.MediPointCareMate){
+    const copy = window.MediPointCareMate.getRecommendationCopy(caremate.recommendation);
+    const bullets = window.MediPointCareMate.recommendationBullets(caremate.recommendation);
+    const variant = copy.severity === 'critical'
+      ? 'critical'
+      : copy.severity === 'warning'
+        ? 'warning'
+        : 'normal';
+
+    setAssessmentState(copy.label, copy.summary, variant);
+    setHTML(recommendationList, bullets.map(item => `<li>${item}</li>`).join(''));
     return;
   }
 

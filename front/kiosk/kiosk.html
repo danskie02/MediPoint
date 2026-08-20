@@ -163,7 +163,9 @@
     </div>
   </div>
 
+  <script src="../login-pages/medipoint-config.js"></script>
   <script src="../shared.js"></script>
+  <script src="../caremate.js"></script>
   <script src="../login-pages/kiosk-api.js"></script>
   <script src="kiosk-audio.js"></script>
   <script>
@@ -572,24 +574,63 @@
       const results = Object.values(assessmentResults);
       if (!results.length) return;
 
-      const localRecord = MediPoint.saveAssessment(signedInUser, {
-        date: new Date().toISOString(),
-        results
-      });
+      let caremate = null;
+      const user = await MediPoint.repairUserIdentity(signedInUser);
 
       try {
-        if (window.MediPointKioskApi && window.MEDIPOINT_SUPABASE_URL && window.MEDIPOINT_SUPABASE_ANON_KEY) {
-          await window.MediPointKioskApi.storeAssessment({
-            profileId: MediPoint.getProfileId(signedInUser) || '',
-            idNumber: MediPoint.getPublicIdNumber(signedInUser) || '',
-            userName: signedInUser && signedInUser.name ? signedInUser.name : '',
-            program: signedInUser && (signedInUser.program || signedInUser.departmentOffice) ? String(signedInUser.program || signedInUser.departmentOffice) : '',
-            results: localRecord.results,
-          });
-          console.info('[MediPoint] Assessment saved to Supabase.');
+        if (window.MediPointCareMate) {
+          const prediction = await window.MediPointCareMate.predictFromAssessment(results, user);
+          if (prediction && prediction.recommendation) {
+            caremate = {
+              recommendation: prediction.recommendation,
+              probabilities: prediction.probabilities || {},
+              features: prediction.features || null,
+              generatedAt: new Date().toISOString()
+            };
+          }
         }
       } catch (error) {
+        console.warn('[MediPoint] CareMate prediction unavailable.', error);
+      }
+
+      const localRecord = MediPoint.saveAssessment(user, {
+        date: new Date().toISOString(),
+        results,
+        caremate
+      });
+
+      const profileId = MediPoint.getProfileId(user) || '';
+      const idNumber = MediPoint.getPublicIdNumber(user) || '';
+
+      if (!window.MediPointKioskApi || !window.MEDIPOINT_SUPABASE_URL || !window.MEDIPOINT_SUPABASE_ANON_KEY) {
+        console.warn('[MediPoint] Supabase is not configured. Assessment saved locally only.');
+        return;
+      }
+
+      if (!profileId && !idNumber) {
+        console.warn('[MediPoint] No profile identity found. Assessment saved locally only.');
+        alert('Assessment saved on this device only. Sign in with a Supabase kiosk account to sync results to the database.');
+        return;
+      }
+
+      try {
+        const payloadResults = caremate && window.MediPointCareMate
+          ? [...localRecord.results, window.MediPointCareMate.buildCareMateResult(caremate)]
+          : localRecord.results;
+
+        await window.MediPointKioskApi.storeAssessment({
+          profileId,
+          idNumber,
+          userName: user && user.name ? user.name : '',
+          program: user && (user.program || user.departmentOffice) ? String(user.program || user.departmentOffice) : '',
+          results: payloadResults,
+          kioskId: window.MEDIPOINT_KIOSK_ID || '',
+        });
+        console.info('[MediPoint] Assessment saved to Supabase.');
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unable to save assessment to Supabase.';
         console.warn('[MediPoint] Unable to save assessment to Supabase.', error);
+        alert(`Assessment saved on this device, but cloud sync failed: ${message}`);
       }
     }
 

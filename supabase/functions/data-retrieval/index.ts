@@ -6,30 +6,21 @@
 
 import { corsHeaders, jsonResponse } from '../_shared/cors.js';
 import { createAdminClient } from '../_shared/supabase-admin.js';
+import { mapAssessmentRows } from '../_shared/assessment-db.js';
 import { mapProfileRowToUser, normalizeText } from '../_shared/profile-mapper.js';
 
-function normalizeRole(value: unknown) {
+function normalizeRole(value) {
   const role = normalizeText(value).toLowerCase();
   return role === 'doctor' ? 'doctor' : role === 'personnel' ? 'personnel' : 'student';
 }
 
-function mapProfileToUser(profile: Record<string, unknown>) {
+function mapProfileToUser(profile) {
   return mapProfileRowToUser(profile, 'supabase');
 }
 
-function mapAssessment(record: Record<string, unknown>) {
-  return {
-    date: record.created_at || record.date || new Date().toISOString(),
-    results: Array.isArray(record.results) ? record.results : [],
-    userId: record.profile_id || record.user_id || record.userId,
-    user: record.user_name || record.user || '',
-    program: record.program || record.department || '',
-  };
-}
-
 async function fetchProfile(
-  supabase: ReturnType<typeof createAdminClient>,
-  profileId: string,
+  supabase,
+  profileId,
 ) {
   const { data, error } = await supabase
     .from('profiles')
@@ -41,29 +32,35 @@ async function fetchProfile(
     return null;
   }
 
-  return data as Record<string, unknown>;
+  return data;
 }
 
 async function fetchAssessments(
-  supabase: ReturnType<typeof createAdminClient>,
-  profileId: string,
+  supabase,
+  profileId,
+  profile,
 ) {
   const { data, error } = await supabase
-    .from('assessment_results')
-    .select('*')
+    .from('assessments')
+    .select(`
+      *,
+      assessment_results (*)
+    `)
     .eq('profile_id', profileId)
-    .order('created_at', { ascending: false });
+    .order('assessed_at', { ascending: false });
 
   if (error || !data) {
     return [];
   }
 
-  return (data as Record<string, unknown>[]).map(mapAssessment);
+  return data.map((assessment) =>
+    mapAssessmentRows(assessment, assessment.assessment_results || [], profile)
+  );
 }
 
 async function fetchProfilesForDoctor(
-  supabase: ReturnType<typeof createAdminClient>,
-  role: string,
+  supabase,
+  role,
 ) {
   const normalizedRole = normalizeRole(role);
   let query = supabase.from('profiles').select('*').order('created_at', { ascending: false });
@@ -77,7 +74,7 @@ async function fetchProfilesForDoctor(
     return [];
   }
 
-  return (data as Record<string, unknown>[]).map(mapProfileToUser);
+  return data.map(mapProfileToUser);
 }
 
 Deno.serve(async (request) => {
@@ -89,7 +86,7 @@ Deno.serve(async (request) => {
     return jsonResponse({ error: 'Method not allowed.' }, 405);
   }
 
-  let body: Record<string, unknown>;
+  let body;
   try {
     body = await request.json();
   } catch (_error) {
@@ -127,7 +124,7 @@ Deno.serve(async (request) => {
       .maybeSingle();
 
     if (!error && data) {
-      profile = data as Record<string, unknown>;
+      profile = data;
     }
   }
 
@@ -135,7 +132,7 @@ Deno.serve(async (request) => {
     return jsonResponse({ error: 'Profile not found.' }, 404);
   }
 
-  const assessments = await fetchAssessments(supabase, profile.id as string);
+  const assessments = await fetchAssessments(supabase, profile.id, profile);
 
   return jsonResponse({
     ok: true,

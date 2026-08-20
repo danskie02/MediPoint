@@ -1,1 +1,7 @@
 front/login-pages/medipoint-config.js
+
+__pycache__/
+*.pyc
+.venv/
+
+supabase/.temp/

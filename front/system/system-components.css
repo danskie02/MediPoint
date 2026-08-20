@@ -90,6 +90,10 @@
      border-left-color:var(--success)
 }
 
+ .result-card.recorded {
+     border-left-color:#2563eb
+}
+
   .result-card.warning {
      border-left-color:var(--warning)
 }
