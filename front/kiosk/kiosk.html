@@ -148,11 +148,19 @@
 
         <span class="modal-divider"></span>
 
-        <section class="modal-reading-card">
+        <section class="modal-reading-card" id="modalReadingCard">
           <h3>Result</h3>
-          <div class="result-value" id="modalResultValue">--</div>
-          <div class="result-unit" id="modalResultUnit">Waiting</div>
-          <div class="result-status hidden" id="modalResultStatus" aria-live="polite">Normal</div>
+          <div class="result-live" id="modalResultLive">
+            <div class="result-value" id="modalResultValue">--</div>
+            <div class="result-unit" id="modalResultUnit">Waiting</div>
+            <div class="result-status hidden" id="modalResultStatus" aria-live="polite">Normal</div>
+          </div>
+          <div class="vital-monitor" id="vitalMonitor" hidden aria-hidden="true">
+            <div class="vital-monitor__screen" role="img" aria-label="Measurement in progress">
+              <canvas id="vitalCanvas" class="vital-monitor__canvas"></canvas>
+              <p class="vital-monitor__caption">Measuring...</p>
+            </div>
+          </div>
         </section>
       </div>
 
@@ -184,9 +192,12 @@
     const modalText = document.getElementById('modalText');
     const modalImage = document.getElementById('modalImage');
     const modalSteps = document.getElementById('modalSteps');
+    const modalReadingCard = document.getElementById('modalReadingCard');
     const modalResultValue = document.getElementById('modalResultValue');
     const modalResultUnit = document.getElementById('modalResultUnit');
     const modalResultStatus = document.getElementById('modalResultStatus');
+    const vitalMonitor = document.getElementById('vitalMonitor');
+    const vitalCanvas = document.getElementById('vitalCanvas');
     const modalStartBtn = document.getElementById('modalStartBtn');
     const closeModal = document.getElementById('closeModal');
     const currentTime = document.getElementById('currentTime');
@@ -194,6 +205,9 @@
     const assessmentResults = {};
     let lastFocusedElement = null;
     const SERIAL_BAUD_RATE = 9600;
+    const MIN_MEASURING_MS = 2000;
+    let vitalAnimFrame = 0;
+    let vitalAnimRunning = false;
     let serialPort = null;
     let serialWriter = null;
     let serialReader = null;
@@ -415,12 +429,196 @@
       }
     }
 
+    function prefersReducedMotion() {
+      return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    }
+
+    function resizeVitalCanvas() {
+      if (!vitalCanvas || !vitalCanvas.parentElement) return;
+      vitalCanvas.style.width = '100%';
+      vitalCanvas.style.height = '100%';
+      const parent = vitalCanvas.parentElement;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const cssWidth = Math.max(1, Math.min(parent.clientWidth || 220, 280));
+      const cssHeight = Math.max(1, Math.min(parent.clientHeight || 148, 148));
+      const width = Math.round(cssWidth * dpr);
+      const height = Math.round(cssHeight * dpr);
+      if (vitalCanvas.width !== width || vitalCanvas.height !== height) {
+        vitalCanvas.width = width;
+        vitalCanvas.height = height;
+      }
+    }
+
+    function drawVitalFrame(now) {
+      if (!vitalCanvas) return;
+      const ctx = vitalCanvas.getContext('2d');
+      if (!ctx) return;
+
+      const w = vitalCanvas.width;
+      const h = vitalCanvas.height;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const t = now / 1000;
+      const size = Math.min(w, h);
+      const cx = w / 2;
+      const cy = h * 0.42;
+
+      ctx.clearRect(0, 0, w, h);
+
+      const bg = ctx.createLinearGradient(0, 0, 0, h);
+      bg.addColorStop(0, '#ffffff');
+      bg.addColorStop(1, '#fff5f5');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, w, h);
+
+      for (let i = 0; i < 4; i += 1) {
+        const progress = (t * 0.42 + i / 4) % 1;
+        const radius = (size * 0.08) + progress * size * 0.38;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(201, 34, 40, ${0.38 * (1 - progress)})`;
+        ctx.lineWidth = 2 * dpr;
+        ctx.stroke();
+      }
+
+      for (let i = 0; i < 9; i += 1) {
+        const speed = 0.7 + (i % 3) * 0.18;
+        const angle = t * speed + i * (Math.PI * 2 / 9);
+        const orbit = size * (0.16 + (i % 3) * 0.08);
+        const x = cx + Math.cos(angle) * orbit;
+        const y = cy + Math.sin(angle) * orbit * 0.78;
+        ctx.beginPath();
+        ctx.arc(x, y, (2.2 + (i % 2) * 0.8) * dpr, 0, Math.PI * 2);
+        ctx.fillStyle = i % 2 === 0 ? '#c92228' : '#1b1b2f';
+        ctx.globalAlpha = 0.85;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+
+      const pulse = 1 + Math.sin(t * 3.1) * 0.16;
+      ctx.beginPath();
+      ctx.arc(cx, cy, size * 0.055 * pulse, 0, Math.PI * 2);
+      ctx.fillStyle = '#c92228';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(cx, cy, size * 0.1 * pulse, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(201, 34, 40, 0.28)';
+      ctx.lineWidth = 2 * dpr;
+      ctx.stroke();
+
+      const waveY = h * 0.82;
+      ctx.beginPath();
+      for (let x = 0; x <= w; x += 2 * dpr) {
+        const nx = x / w;
+        const y = waveY
+          + Math.sin(nx * Math.PI * 7 + t * 4.4) * size * 0.06
+          + Math.sin(nx * Math.PI * 15 + t * 6.6) * size * 0.03
+          + Math.sin(t * 2.4 + nx * 18) * size * 0.016;
+        if (x === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = '#c92228';
+      ctx.lineWidth = 2.2 * dpr;
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      ctx.stroke();
+
+      ctx.beginPath();
+      for (let x = 0; x <= w; x += 3 * dpr) {
+        const nx = x / w;
+        const y = waveY
+          + Math.sin(nx * Math.PI * 5 - t * 3.1) * 5 * dpr
+          + Math.sin(nx * Math.PI * 11 + t * 5.2) * 2.4 * dpr;
+        if (x === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = 'rgba(27, 27, 47, 0.22)';
+      ctx.lineWidth = 1.4 * dpr;
+      ctx.stroke();
+
+      const beadX = ((t * 0.35) % 1) * w;
+      const beadNx = beadX / w;
+      const beadY = waveY
+        + Math.sin(beadNx * Math.PI * 7 + t * 4.4) * 9 * dpr
+        + Math.sin(beadNx * Math.PI * 15 + t * 6.6) * 4.5 * dpr
+        + Math.sin(t * 2.4 + beadNx * 18) * 2.5 * dpr;
+      ctx.beginPath();
+      ctx.arc(beadX, beadY, 4.2 * dpr, 0, Math.PI * 2);
+      ctx.fillStyle = '#c92228';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(beadX, beadY, 8 * dpr, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(201, 34, 40, 0.35)';
+      ctx.lineWidth = 2 * dpr;
+      ctx.stroke();
+
+      const sweepX = ((t * 0.22) % 1) * w;
+      const sweep = ctx.createLinearGradient(sweepX - 28 * dpr, 0, sweepX + 28 * dpr, 0);
+      sweep.addColorStop(0, 'rgba(201, 34, 40, 0)');
+      sweep.addColorStop(0.5, 'rgba(201, 34, 40, 0.1)');
+      sweep.addColorStop(1, 'rgba(201, 34, 40, 0)');
+      ctx.fillStyle = sweep;
+      ctx.fillRect(0, 0, w, h);
+    }
+
+    function tickVitalAnimation(now) {
+      if (!vitalAnimRunning) return;
+      resizeVitalCanvas();
+      drawVitalFrame(now);
+      vitalAnimFrame = requestAnimationFrame(tickVitalAnimation);
+    }
+
+    function startVitalAnimation() {
+      stopVitalAnimation();
+      if (!vitalCanvas) return;
+      resizeVitalCanvas();
+      if (prefersReducedMotion()) {
+        drawVitalFrame(0);
+        return;
+      }
+      vitalAnimRunning = true;
+      vitalAnimFrame = requestAnimationFrame(tickVitalAnimation);
+    }
+
+    function stopVitalAnimation() {
+      vitalAnimRunning = false;
+      if (vitalAnimFrame) {
+        cancelAnimationFrame(vitalAnimFrame);
+        vitalAnimFrame = 0;
+      }
+    }
+
+    function showMeasuringAnimation() {
+      if (!vitalMonitor || !modalReadingCard) return;
+      modalReadingCard.classList.add('is-measuring');
+      modalReadingCard.setAttribute('aria-busy', 'true');
+      vitalMonitor.hidden = false;
+      vitalMonitor.setAttribute('aria-hidden', 'false');
+      requestAnimationFrame(startVitalAnimation);
+    }
+
+    function hideMeasuringAnimation() {
+      stopVitalAnimation();
+      if (!vitalMonitor || !modalReadingCard) return;
+      modalReadingCard.classList.remove('is-measuring');
+      modalReadingCard.setAttribute('aria-busy', 'false');
+      vitalMonitor.hidden = true;
+      vitalMonitor.setAttribute('aria-hidden', 'true');
+    }
+
+    async function holdMeasuringAnimation(startedAt, minMs = MIN_MEASURING_MS) {
+      const remaining = minMs - (performance.now() - startedAt);
+      if (remaining > 0) {
+        await new Promise(resolve => setTimeout(resolve, remaining));
+      }
+    }
+
     async function closeInstructionModal() {
       if (modalStartBtn.dataset.state === 'measuring') {
         return;
       }
 
       MediPointKioskAudio.stop();
+      hideMeasuringAnimation();
 
       if (allMeasurementsComplete()) {
         window.location.href = 'assessment-summary.html';
@@ -568,6 +766,7 @@
       modalResultUnit.textContent = result.unit;
       modalResultStatus.textContent = result.status;
       modalResultStatus.classList.remove('hidden');
+      hideMeasuringAnimation();
     }
 
     async function saveAssessment() {
@@ -656,6 +855,7 @@
         modalResultValue.textContent = '--';
         modalResultUnit.textContent = info.unit || 'Waiting';
         modalResultStatus.classList.add('hidden');
+        hideMeasuringAnimation();
         modalStartBtn.dataset.target = title;
         modalStartBtn.dataset.state = 'ready';
         modalStartBtn.textContent = 'START';
@@ -680,6 +880,10 @@
     });
 
     modalStartBtn.addEventListener('click', async () => {
+      if (modalStartBtn.dataset.state === 'measuring') {
+        return;
+      }
+
       if (modalStartBtn.dataset.state === 'complete') {
         await closeInstructionModal();
         return;
@@ -696,6 +900,12 @@
       const selectedButton = activeMeasurementButton;
       const selectedCard = selectedButton ? selectedButton.closest('.vital-card') : Array.from(cards).find(card => card.querySelector('h2').textContent.trim() === title);
 
+      modalStartBtn.dataset.state = 'measuring';
+      modalStartBtn.disabled = true;
+      modalStartBtn.textContent = 'MEASURING';
+      showMeasuringAnimation();
+      const measuringStartedAt = performance.now();
+
       let serialOk = true;
       let measurementType = null;
       let result = null;
@@ -705,6 +915,7 @@
       let spo2Available = false;
       let temperatureAvailable = false;
 
+      try {
       if (title === 'Height' || title === 'Weight') {
         pendingHeightMeasurement = null;
         pendingWeightMeasurement = null;
@@ -852,6 +1063,8 @@
         selectedCard.classList.add('completed');
       }
 
+      await holdMeasuringAnimation(measuringStartedAt);
+
       const completionMessage = allMeasurementsComplete()
         ? `Measurement complete. Your ${title} is ${result.value}. All measurements are finished. Press View Summary to continue.`
         : `Measurement complete. Your ${title} is ${result.value}. Review your result before continuing.`;
@@ -867,6 +1080,14 @@
         modalStartBtn.textContent = 'Close';
       }
       modalStartBtn.disabled = false;
+      } catch (error) {
+        console.error('[MediPoint] Measurement failed.', error);
+        hideMeasuringAnimation();
+        modalStartBtn.dataset.state = 'ready';
+        modalStartBtn.disabled = false;
+        modalStartBtn.textContent = 'START';
+        updateModalStatus('Measurement could not be completed. Please try again.');
+      }
     });
 
     updateDateTime();
