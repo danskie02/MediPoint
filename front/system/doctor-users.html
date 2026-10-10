@@ -23,19 +23,19 @@
         </div>
         <nav class="side-nav">
           <a href="doctor-portal.html">
-            <span>OV</span>
+            <svg class="nav-icon" aria-hidden="true"><use href="nav-icons.svg#overview"></use></svg>
             Clinical Overview
           </a>
           <a href="doctor-users.html" class="active">
-            <span>LU</span>
+            <svg class="nav-icon" aria-hidden="true"><use href="nav-icons.svg#users"></use></svg>
             List of Users
           </a>
           <a href="doctor-analytics.html">
-            <span>AN</span>
+            <svg class="nav-icon" aria-hidden="true"><use href="nav-icons.svg#analytics"></use></svg>
             Analytics
           </a>
           <a href="doctor-histogram.html">
-            <span>HG</span>
+            <svg class="nav-icon" aria-hidden="true"><use href="nav-icons.svg#histogram"></use></svg>
             User Histogram
           </a>
         </nav>
@@ -102,6 +102,17 @@
                 <tbody id="userRows">
                 </tbody>
               </table>
+            </div>
+          </section>
+          <section class="monitor-panel user-profile-panel" aria-labelledby="selectedUserHeading" aria-live="polite">
+            <div class="monitor-toolbar">
+              <div>
+                <h2 id="selectedUserHeading">Selected user profile</h2>
+                <p>Personal information and the latest recorded assessment.</p>
+              </div>
+            </div>
+            <div id="selectedUserProfile" class="selected-user-profile">
+              <p class="empty-monitor">Select a user to view their profile details.</p>
             </div>
           </section>
         </main>

@@ -197,6 +197,20 @@
     return readJSON(localStorage, portalAccountKey(email), null);
   }
 
+  function getKioskQrPayload(user) {
+    const explicit = normalizeId(user && (user.kioskQrPayload || user.qrPayload || user.qrCode || user.qrText || user.qr));
+    if (explicit) {
+      return explicit;
+    }
+
+    const id = getPublicIdNumber(user);
+    if (id) {
+      return `medipoint:v1:${id}`;
+    }
+
+    return '';
+  }
+
   function getPortalAccounts() {
     const accounts = [];
     for(let index = 0; index < localStorage.length; index++) {
@@ -231,6 +245,7 @@
       ...profile,
       email,
       idNumber: account.userId,
+      kioskQrPayload: getKioskQrPayload(profile) || undefined,
       accountType: 'portal'
     }));
     return account;
@@ -292,7 +307,8 @@
       ...user,
       idNumber,
       profileId: profileId || user.profileId || '',
-      id: profileId || user.id || idNumber
+      id: profileId || user.id || idNumber,
+      kioskQrPayload: getKioskQrPayload(user) || undefined
     };
 
     const isPortalProfile = user && user.accountType === 'portal';
@@ -459,6 +475,7 @@
     saveAssessment,
     getLatestAssessment,
     escapeHTML,
+    getKioskQrPayload,
     routeFor
   };
 })();

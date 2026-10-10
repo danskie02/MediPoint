@@ -19,14 +19,25 @@ const pGender = document.getElementById('pGender');
 const pBarangay = document.getElementById('pBarangay');
 const pCity = document.getElementById('pCity');
 const pProvince = document.getElementById('pProvince');
+const pPresentBarangay = document.getElementById('pPresentBarangay');
+const pPresentCity = document.getElementById('pPresentCity');
+const pPresentProvince = document.getElementById('pPresentProvince');
 const pPhone = document.getElementById('pPhone');
 const pEmergency = document.getElementById('pEmergency');
 const pEmergencyPhone = document.getElementById('pEmergencyPhone');
+const pGuardianRelationship = document.getElementById('pGuardianRelationship');
+const pMedicalHistory = document.getElementById('pMedicalHistory');
+const pOtherMedicalHistory = document.getElementById('pOtherMedicalHistory');
+const pPreviousSurgeries = document.getElementById('pPreviousSurgeries');
+const pPreviousSurgeryDate = document.getElementById('pPreviousSurgeryDate');
+const pCurrentMedications = document.getElementById('pCurrentMedications');
+const pKnownAllergies = document.getElementById('pKnownAllergies');
 const pDept = document.getElementById('pDept');
 const pKiosk = document.getElementById('pKiosk');
 const statLastCheckin = document.getElementById('statLastCheckin');
 const statTotalAssessments = document.getElementById('statTotalAssessments');
 const statLatestStatus = document.getElementById('statLatestStatus');
+const kioskQrBox = document.getElementById('kioskQrBox');
 const editProfileBtn = document.getElementById('editProfileBtn');
 const changePhotoBtn = document.getElementById('changePhotoBtn');
 const reportIssueBtn = document.getElementById('reportIssueBtn');
@@ -45,6 +56,11 @@ const allCount = document.getElementById('allCount');
 const overallStatus = document.getElementById('overallStatus');
 const overallText = document.getElementById('overallText');
 const recommendationList = document.getElementById('recommendationList');
+const trendMetric = document.getElementById('trendMetric');
+const trendChart = document.getElementById('trendChart');
+const trendEmpty = document.getElementById('trendEmpty');
+const trendLegend = document.getElementById('trendLegend');
+const trendHistory = document.getElementById('trendHistory');
 const heroStatus = document.getElementById('heroStatus');
 const heroText = document.getElementById('heroText');
 const userInfoForm = document.getElementById('userInfoForm');
@@ -90,6 +106,31 @@ const defaultUser = {
 let user = currentUser || defaultUser;
 let userId = 'guest';
 
+function renderKioskQr(){
+  if(!kioskQrBox){
+    return;
+  }
+
+  const qrPayload = MediPoint.getKioskQrPayload(user);
+  kioskQrBox.innerHTML = '';
+
+  if(!qrPayload || typeof window.QRCode === 'undefined'){
+    kioskQrBox.innerHTML = '<div class="qr-empty">QR unavailable</div>';
+    return;
+  }
+
+  try {
+    new QRCode(kioskQrBox, {
+      text: qrPayload,
+      width: 180,
+      height: 180
+    });
+  } catch (error) {
+    console.warn('Unable to render kiosk QR code.', error);
+    kioskQrBox.innerHTML = '<div class="qr-empty">QR unavailable</div>';
+  }
+}
+
 function renderUserDetails(){
   userId = MediPoint.getPublicIdNumber(user) || 'guest';
 
@@ -116,9 +157,19 @@ function renderUserDetails(){
   setText(pBarangay, user.barangay || 'Not available');
   setText(pCity, user.city || 'Not available');
   setText(pProvince, user.province || 'Not available');
+  setText(pPresentBarangay, user.presentBarangay || 'Not available');
+  setText(pPresentCity, user.presentCity || 'Not available');
+  setText(pPresentProvince, user.presentProvince || 'Not available');
   setText(pPhone, user.phone || user.mobile || 'Not available');
   setText(pEmergency, user.emergencyContact || user.emergencyContactName || 'Not available');
+  setText(pGuardianRelationship, user.guardianRelationship || 'Not available');
   setText(pEmergencyPhone, user.emergencyPhone || 'Not available');
+  setText(pMedicalHistory, Array.isArray(user.medicalHistory) && user.medicalHistory.length ? user.medicalHistory.join(', ') : 'None reported');
+  setText(pOtherMedicalHistory, user.otherMedicalHistory || 'Not available');
+  setText(pPreviousSurgeries, user.previousSurgeries || 'Not available');
+  setText(pPreviousSurgeryDate, user.previousSurgeryDate || 'Not available');
+  setText(pCurrentMedications, user.currentMedications || 'Not available');
+  setText(pKnownAllergies, user.knownAllergies || 'Not available');
   setText(pDept, user.program || user.departmentOffice || user.department || user.section || 'Not available');
   setText(pKiosk, user.kiosk || user.registeredKiosk || 'Not available');
 }
@@ -132,6 +183,7 @@ async function bootstrapPortal(){
   }
 
   renderUserDetails();
+  renderKioskQr();
 
   if(userInfoForm){
     fillUserInfoForm();
@@ -383,6 +435,11 @@ function setAssessmentState(status, text, variant){
 }
 
 async function renderAssessment(){
+  if(trendMetric){
+    await renderAnalytics();
+    return;
+  }
+
   if(!overallStatus && !heroStatus && !recommendationList){
     return;
   }
@@ -442,6 +499,170 @@ async function renderAssessment(){
   `);
 }
 
+function getTrendEntries(record){
+  const results = window.MediPointCareMate
+    ? window.MediPointCareMate.stripCareMateResults(splitWeightBmi(record.results || []))
+    : splitWeightBmi(record.results || []);
+  const entries = [];
+
+  results.forEach(result => {
+    const title = String(result.title || 'Measurement').trim();
+    const value = String(result.value || '');
+    if(title.toLowerCase().includes('blood pressure')){
+      const pressure = value.match(/([\d.]+)\s*\/\s*([\d.]+)/);
+      if(pressure){
+        entries.push({ title: 'Blood Pressure · Systolic', unit: 'mmHg', value: Number(pressure[1]), status: result.status || 'Recorded' });
+        entries.push({ title: 'Blood Pressure · Diastolic', unit: 'mmHg', value: Number(pressure[2]), status: result.status || 'Recorded' });
+      }
+      return;
+    }
+
+    const numeric = value.match(/-?\d+(?:\.\d+)?/);
+    if(numeric){
+      entries.push({ title, unit: result.unit || '', value: Number(numeric[0]), status: result.status || 'Recorded' });
+    }
+  });
+
+  return entries;
+}
+
+function formatTrendNumber(value){
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+function formatTrendDate(value, includeTime){
+  const date = new Date(value);
+  if(Number.isNaN(date.getTime())) return 'Date unavailable';
+  return date.toLocaleString('en-US', includeTime
+    ? { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' }
+    : { month:'short', day:'numeric', year:'numeric' });
+}
+
+function getSelectedTrendReadings(records){
+  const title = trendMetric.value;
+  return records
+    .map(record => ({ record, entry: getTrendEntries(record).find(item => item.title === title) }))
+    .filter(item => item.entry)
+    .reverse();
+}
+
+function renderTrendSummary(readings){
+  const latest = readings[readings.length - 1];
+  const earliest = readings[0];
+  setText(document.getElementById('trendLatest'), latest
+    ? `${formatTrendNumber(latest.entry.value)}${latest.entry.unit ? ` ${latest.entry.unit}` : ''}`
+    : '--');
+  setText(document.getElementById('trendLatestDate'), latest ? formatTrendDate(latest.record.date, true) : 'No readings yet');
+  setText(document.getElementById('trendRecordCount'), readings.length);
+
+  if(readings.length > 1){
+    const difference = latest.entry.value - earliest.entry.value;
+    const sign = difference > 0 ? '+' : '';
+    setText(document.getElementById('trendChange'), `${sign}${formatTrendNumber(difference)}${latest.entry.unit ? ` ${latest.entry.unit}` : ''}`);
+    setText(document.getElementById('trendChangeNote'), `Since ${formatTrendDate(earliest.record.date, false)}; change only`);
+  }else{
+    setText(document.getElementById('trendChange'), '--');
+    setText(document.getElementById('trendChangeNote'), 'At least two records are needed');
+  }
+}
+
+function renderTrendChart(readings){
+  const description = document.getElementById('trendDescription');
+  const selected = trendMetric.options[trendMetric.selectedIndex];
+  setText(description, selected && selected.dataset.unit
+    ? `${selected.textContent} · ${selected.dataset.unit}`
+    : selected ? selected.textContent : 'Choose a reading to view its history.');
+  setHTML(trendLegend, selected && selected.dataset.unit
+    ? `<span class="trend-key"></span><span>${MediPoint.escapeHTML(selected.textContent)} (${MediPoint.escapeHTML(selected.dataset.unit)})</span>`
+    : '');
+
+  if(!readings.length){
+    trendChart.innerHTML = '';
+    trendChart.hidden = true;
+    trendEmpty.hidden = false;
+    trendEmpty.textContent = 'No numeric readings are available for this measurement yet.';
+    return;
+  }
+
+  trendChart.hidden = false;
+  trendEmpty.hidden = true;
+  const width = 800;
+  const height = 300;
+  const margin = { top: 22, right: 28, bottom: 48, left: 58 };
+  const values = readings.map(item => item.entry.value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const padding = max === min ? Math.max(Math.abs(max) * 0.08, 1) : (max - min) * 0.15;
+  const low = min - padding;
+  const high = max + padding;
+  const x = index => margin.left + (readings.length === 1 ? (width - margin.left - margin.right) / 2 : index * (width - margin.left - margin.right) / (readings.length - 1));
+  const y = value => margin.top + (high - value) * (height - margin.top - margin.bottom) / (high - low);
+  const points = readings.map((item, index) => `${x(index)},${y(item.entry.value)}`).join(' ');
+  const ticks = 4;
+  const grid = Array.from({ length: ticks + 1 }, (_, index) => {
+    const value = low + (high - low) * index / ticks;
+    const position = y(value);
+    return `<line class="chart-grid" x1="${margin.left}" y1="${position}" x2="${width - margin.right}" y2="${position}"/><text class="chart-y-label" x="${margin.left - 10}" y="${position + 4}" text-anchor="end">${formatTrendNumber(value)}</text>`;
+  }).join('');
+  const marks = readings.map((item, index) => {
+    const px = x(index);
+    const py = y(item.entry.value);
+    const dateLabel = formatTrendDate(item.record.date, false);
+    const label = readings.length > 7 && index % Math.ceil(readings.length / 7) !== 0 && index !== readings.length - 1 ? '' : `<text class="chart-x-label" x="${px}" y="${height - 16}" text-anchor="middle">${MediPoint.escapeHTML(dateLabel)}</text>`;
+    return `<circle class="chart-point" cx="${px}" cy="${py}" r="5"><title>${MediPoint.escapeHTML(dateLabel)}: ${formatTrendNumber(item.entry.value)} ${MediPoint.escapeHTML(item.entry.unit)}</title></circle>${label}`;
+  }).join('');
+
+  trendChart.setAttribute('aria-label', `Trend for ${selected ? selected.textContent : 'selected reading'} across ${readings.length} assessments`);
+  trendChart.innerHTML = `${grid}<polyline class="chart-line" points="${points}"/>${marks}`;
+}
+
+function renderTrendHistory(readings){
+  if(!readings.length){
+    trendHistory.innerHTML = '<tr><td colspan="3">No readings recorded yet.</td></tr>';
+    return;
+  }
+
+  trendHistory.innerHTML = readings.slice().reverse().map(({ record, entry }) => `
+    <tr>
+      <td>${MediPoint.escapeHTML(formatTrendDate(record.date, true))}</td>
+      <td><strong>${formatTrendNumber(entry.value)} ${MediPoint.escapeHTML(entry.unit)}</strong></td>
+      <td><span class="reading-status ${getStatusClass(entry.status)}">${MediPoint.escapeHTML(getDisplayStatus(entry.status))}</span></td>
+    </tr>
+  `).join('');
+}
+
+async function renderAnalytics(){
+  const records = await getMeasurements();
+  const metrics = new Map();
+  records.forEach(record => getTrendEntries(record).forEach(entry => {
+    if(!metrics.has(entry.title)) metrics.set(entry.title, entry.unit);
+  }));
+
+  const previousSelection = trendMetric.value;
+  trendMetric.innerHTML = [...metrics.entries()].map(([title, unit]) =>
+    `<option value="${MediPoint.escapeHTML(title)}" data-unit="${MediPoint.escapeHTML(unit)}">${MediPoint.escapeHTML(title)}</option>`
+  ).join('');
+
+  if(!metrics.size){
+    trendMetric.innerHTML = '<option value="">No readings</option>';
+    trendMetric.disabled = true;
+    trendChart.hidden = true;
+    trendEmpty.hidden = false;
+    trendEmpty.textContent = 'Your readings will appear here after a kiosk assessment.';
+    trendLegend.innerHTML = '';
+    trendHistory.innerHTML = '<tr><td colspan="3">No readings recorded yet.</td></tr>';
+    renderTrendSummary([]);
+    return;
+  }
+
+  trendMetric.disabled = false;
+  if(metrics.has(previousSelection)) trendMetric.value = previousSelection;
+  const readings = getSelectedTrendReadings(records);
+  renderTrendSummary(readings);
+  renderTrendChart(readings);
+  renderTrendHistory(readings);
+}
+
 async function renderHistory(){
   if(!historyList){
     return;
@@ -464,6 +685,8 @@ async function renderHistory(){
     });
 
     const total = record.results ? record.results.length : 0;
+    const status = getAssessmentStatusFor(record);
+    const summary = getAssessmentSummaryFor(record);
 
     return `
       <div class="history-item">
@@ -472,10 +695,74 @@ async function renderHistory(){
           <br>
           <span>${date}</span>
         </div>
-        <span>${total} results</span>
+        <div>
+          <div><strong>${MediPoint.escapeHTML(status)}</strong></div>
+          <div><small>${MediPoint.escapeHTML(summary)}</small></div>
+          <div><span>${total} results</span></div>
+        </div>
       </div>
     `;
   }).join('');
+}
+
+function getAssessmentSummaryFor(record){
+  const results = Array.isArray(record && record.results) ? record.results : [];
+
+  if (window.MediPointCareMate) {
+    const caremate = window.MediPointCareMate.extractCareMateFromAssessment(record);
+    if (caremate && caremate.recommendation) {
+      const copy = window.MediPointCareMate.getRecommendationCopy(caremate.recommendation);
+      return copy.summary;
+    }
+  }
+
+  if(!results.length){
+    return 'No measurements recorded yet.';
+  }
+
+  const hasCritical = results.some(result => normalizeStatus(result.status) === 'Critical');
+  const hasWarning = results.some(result => normalizeStatus(result.status) === 'Warning');
+
+  if(hasCritical){
+    return 'Some measurements fell outside the normal range.';
+  }
+
+  if(hasWarning){
+    return 'Several readings need monitoring and follow-up.';
+  }
+
+  return 'All recorded measurements are within the normal range.';
+}
+
+function getAssessmentStatusFor(record){
+  const results = Array.isArray(record && record.results) ? record.results : [];
+
+  if (window.MediPointCareMate) {
+    const caremate = window.MediPointCareMate.extractCareMateFromAssessment(record);
+    if (caremate && caremate.recommendation && window.MediPointCareMate) {
+      const copy = window.MediPointCareMate.getRecommendationCopy(caremate.recommendation);
+      if (copy.severity === 'critical') return 'Needs Attention';
+      if (copy.severity === 'warning') return 'Monitor';
+      return 'Normal';
+    }
+  }
+
+  if(!results.length){
+    return 'No Data';
+  }
+
+  const hasCritical = results.some(result => normalizeStatus(result.status) === 'Critical');
+  const hasWarning = results.some(result => normalizeStatus(result.status) === 'Warning');
+
+  if(hasCritical){
+    return 'Needs Attention';
+  }
+
+  if(hasWarning){
+    return 'Monitor';
+  }
+
+  return 'Normal';
 }
 
 function computeOverallStatusLabel(latestResults){
@@ -520,6 +807,41 @@ async function renderProfileSnapshot(){
 }
 
 async function exportCSV(){
+  if(trendMetric){
+    const records = await getMeasurements();
+    const rows = records.flatMap(record => splitWeightBmi(record.results || []).map(result => [
+      formatTrendDate(record.date, true),
+      result.title || 'Measurement',
+      result.value ?? '',
+      result.unit || '',
+      getDisplayStatus(result.status),
+      result.note || ''
+    ]));
+
+    if(!rows.length){
+      alert('No readings to export.');
+      return;
+    }
+
+    function csvCell(value){
+      let text = String(value ?? '');
+      if(/^[=+\-@]/.test(text)) text = `'${text}`;
+      return `"${text.replaceAll('"', '""')}"`;
+    }
+
+    const csv = ['Visit date,Reading,Value,Unit,Status,Note', ...rows.map(row => row.map(csvCell).join(','))].join('\n');
+    const blob = new Blob([csv], { type:'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'medipoint-reading-history.csv';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+    return;
+  }
+
   const results = await getLatestResults();
 
   if(!results.length){
@@ -773,6 +1095,10 @@ if(searchInput){
 
 if(exportBtn){
   exportBtn.addEventListener('click', () => { void exportCSV(); });
+}
+
+if(trendMetric){
+  trendMetric.addEventListener('change', () => { void renderAnalytics(); });
 }
 
 if(editProfileBtn){

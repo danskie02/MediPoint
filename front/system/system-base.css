@@ -80,16 +80,23 @@
      display:flex;
      flex-direction:column;
      gap:22px;
-     padding:24px 18px;
-     background:linear-gradient(180deg,#aa0000,#97000d);
-     border-right:1px solid rgba(255,255,255,.12)
+     padding:24px 18px 20px;
+     background:linear-gradient(180deg,#a90b1e 0%,#8c0917 35%,#6d0714 100%);
+     border-right:1px solid rgba(255,255,255,.12);
+     box-shadow:inset -1px 0 0 rgba(255,255,255,.08), inset 0 0 24px rgba(0,0,0,.08)
 }
 
  .brand-block {
-     min-height:56px;
+     min-height:62px;
      display:flex;
      align-items:center;
-     text-decoration:none
+     justify-content:center;
+     padding:10px 12px;
+     border:1px solid rgba(255,255,255,.18);
+     border-radius:12px;
+     background:rgba(255,255,255,.06);
+     text-decoration:none;
+     backdrop-filter:blur(8px)
 }
 
  .logo {
@@ -103,11 +110,11 @@
      display:flex;
      align-items:center;
      gap:12px;
-     padding:14px;
-     background:#fff;
-     border:1px solid rgba(255,255,255,.25);
-     border-radius:var(--radius);
-     box-shadow:var(--small-shadow)
+     padding:14px 14px 14px 12px;
+     background:rgba(255,255,255,.96);
+     border:1px solid rgba(255,255,255,.28);
+     border-radius:14px;
+     box-shadow:0 12px 30px rgba(18,20,34,.18)
 }
 
  .avatar {
@@ -152,43 +159,49 @@
      gap:12px;
      padding:0 12px;
      color:#fff;
-     border-radius:9px;
+     border:1px solid rgba(255,255,255,.08);
+     border-radius:12px;
+     background:rgba(255,255,255,.04);
      font-size:14px;
      font-weight:800;
      text-decoration:none;
-     transition:background .18s,color .18s,transform .18s
+     transition:all .18s ease;
+     box-shadow:inset 0 1px 0 rgba(255,255,255,.06)
 }
 
- .side-nav a span {
+ .side-nav a .nav-icon {
      width:29px;
      height:29px;
      flex:0 0 auto;
-     display:grid;
-     place-items:center;
-     border-radius:7px;
-     background:rgba(255,255,255,.16);
+     padding:5px;
+     display:block;
+     border-radius:9px;
+     background:rgba(255,255,255,.14);
      color:#fff;
-     font-size:10px;
-     font-weight:900
+     stroke:currentColor;
+     transition:all .18s ease
 }
 
  .side-nav a:hover,.side-nav a.active {
      background:#fff;
      color:var(--brand);
-     transform:translateX(2px)
+     transform:translateX(3px);
+     box-shadow:0 12px 20px rgba(15,23,42,.14)
 }
 
- .side-nav a:hover span,.side-nav a.active span {
+ .side-nav a:hover .nav-icon,.side-nav a.active .nav-icon {
      background:var(--brand-light);
      color:var(--brand)
 }
 
  .side-footer {
      margin-top:auto;
-     padding:16px;
-     background:#111827;
+     padding:16px 16px 15px;
+     background:linear-gradient(180deg,#151827,#111827 65%);
      color:#fff;
-     border-radius:var(--radius)
+     border:1px solid rgba(255,255,255,.12);
+     border-radius:14px;
+     box-shadow:inset 0 1px 0 rgba(255,255,255,.05)
 }
 
  .side-footer span,.side-footer strong {

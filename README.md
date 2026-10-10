@@ -19,6 +19,24 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 
 The checks validate local asset links, duplicate IDs, basic tag balance, empty files, and accidental direct storage parsing outside the shared data module.
 
+## Thermal printer
+
+The kiosk sends assessment results to the local ESC/POS print service. On the Raspberry Pi, connect and power on the USB printer, then check that `/dev/usb/lp0` exists. Start the web app from the repository root with `python3 -m http.server 5500` and open `http://127.0.0.1:5500/front/welcome.html`.
+
+The print service runs separately from the web app:
+
+```sh
+python3 printer/print_server.py
+```
+
+Keep it running while printing. Check `http://127.0.0.1:8765/health` for the service status. The service account needs write access to the printer device. If `/dev/usb/lp0` is owned by group `lp`, add the account that runs the service to that group, then sign out and back in:
+
+```sh
+sudo usermod -aG lp "$USER"
+```
+
+If the device appears at a different path, set `MEDIPOINT_PRINTER_DEVICE` before starting the service. Results are sent to the locally running service; opening the page as a `file://` URL or using a different machine's `localhost` will not reach it.
+
 ## CareMate AI model
 
 The Random Forest triage model (`caremate_rf_model.joblib` + `caremate_encoders.joblib`) runs through a small Python API in `backend/caremate/`.

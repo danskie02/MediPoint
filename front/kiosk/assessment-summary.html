@@ -1129,19 +1129,98 @@
             /*
              * Print the assessment.
              */
-            function printAssessment() {
-                window.print();
+            
+/*
+ * Send the currently displayed MediPoint assessment
+ * to the local GOOJPRT thermal printer service.
+ */
+async function printAssessment(event) {
+    const clickedButton = event.currentTarget;
+
+    if (!resultsGrid.querySelector(".result-tile")) {
+        alert("No assessment results are available to print.");
+        return;
+    }
+
+    // Read the actual values displayed on the summary page.
+    const results = Array.from(
+        resultsGrid.querySelectorAll(".result-tile")
+    ).map(function (tile) {
+        return {
+            title:
+                tile.querySelector(".result-title-row h3")
+                    ?.textContent.trim() || "Measurement",
+
+            value:
+                tile.querySelector(".result-reading strong")
+                    ?.textContent.trim() || "",
+
+            unit:
+                tile.querySelector(".result-reading span")
+                    ?.textContent.trim() || "",
+
+            status:
+                tile.querySelector(".result-status")
+                    ?.textContent.trim() || "Recorded",
+
+            note:
+                tile.querySelector("p")
+                    ?.textContent.trim() || ""
+        };
+    });
+
+    const payload = {
+        name: patientName.textContent.trim(),
+        program: patientProgram.textContent.trim(),
+        measuredAt: measuredAt.textContent.trim(),
+        results: results
+    };
+
+    const originalButtonText = clickedButton.textContent.trim();
+    clickedButton.disabled = true;
+    clickedButton.textContent = "Printing...";
+
+    try {
+        const response = await fetch(
+            "http://127.0.0.1:8765/print",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(payload)
             }
+        );
 
-            printBtn.addEventListener(
-                "click",
-                printAssessment
-            );
+        const responseText = await response.text();
 
-            headerPrintBtn.addEventListener(
-                "click",
-                printAssessment
+        if (!response.ok) {
+            throw new Error(
+                responseText || `Printer service error: ${response.status}`
             );
+        }
+
+        alert("Assessment sent to the MediPoint printer.");
+
+    } catch (error) {
+        console.error("MediPoint printer error:", error);
+
+        alert(
+            "Unable to print the assessment.\n\n" +
+            "Check that the printer service is running on the Raspberry Pi, " +
+            "then check the browser console if the problem continues.\n\n" +
+            "Details: " + error.message
+        );
+
+    } finally {
+        clickedButton.disabled = false;
+        clickedButton.textContent = originalButtonText;
+    }
+}
+
+printBtn.addEventListener("click", printAssessment);
+headerPrintBtn.addEventListener("click", printAssessment);
+
         });
     </script>
 

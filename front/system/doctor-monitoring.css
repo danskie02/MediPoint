@@ -152,6 +152,109 @@
   background: #f9fafb;
 }
 
+.user-table tbody tr.selected {
+  background: #fff7f7;
+}
+
+.user-select {
+  display: grid;
+  gap: 3px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #111827;
+  text-align: left;
+  font-weight: 800;
+}
+
+.user-select span {
+  color: #b80f1d;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.selected-user-profile {
+  display: grid;
+  gap: 20px;
+}
+
+.user-profile-heading,
+.user-assessment-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.user-profile-heading h3,
+.user-assessment-heading h3 {
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.user-profile-heading p,
+.user-assessment-heading span {
+  margin-top: 4px;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.user-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid #e5e7eb;
+  border-left: 1px solid #e5e7eb;
+}
+
+.user-profile-field {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  padding: 13px;
+  border-right: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.user-profile-field span {
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.user-profile-field strong {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+
+.user-assessment-summary {
+  display: grid;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.user-result-list {
+  display: grid;
+  gap: 8px;
+}
+
+.user-result-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(100px, auto) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 13px;
+  background: #f9fafb;
+  border-radius: 7px;
+  font-size: 13px;
+}
+
+.user-result-row small {
+  color: #6b7280;
+}
+
 
 /* =========================================================
    6. STATUS PILLS
@@ -197,12 +300,44 @@
   gap: 18px;
 }
 
+.summary-insights {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
 
-/* =========================================================
-   8. METRIC PROGRESS ROWS
-   ========================================================= */
+.insight-card {
+  display: grid;
+  gap: 8px;
+  padding: 16px 18px;
+  background: linear-gradient(135deg, #fff7f7, #ffffff);
+  border: 1px solid #f1d0d4;
+  border-radius: 12px;
+}
 
-.metric-row {
+.insight-card span {
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.insight-card strong {
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.insight-card small {
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.compact-histogram {
+  height: 290px;
+}
+
   display: grid;
   grid-template-columns: 130px minmax(0, 1fr) 45px;
   align-items: center;
@@ -319,6 +454,10 @@
   .analytics-grid {
     grid-template-columns: 1fr;
   }
+
+  .summary-insights {
+    grid-template-columns: 1fr;
+  }
 }
 
 
@@ -358,5 +497,17 @@
   .metric-row {
     grid-template-columns: 100px minmax(0, 1fr) 38px;
     gap: 8px;
+  }
+
+  .user-profile-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .user-result-row {
+    grid-template-columns: 1fr auto;
+  }
+
+  .user-result-row small {
+    grid-column: 1 / -1;
   }
 }
