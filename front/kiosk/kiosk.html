@@ -212,6 +212,9 @@
     let serialWriter = null;
     let serialReader = null;
     let serialBuffer = '';
+    let serialReady = false;
+    let serialReadyPromise = null;
+    let resolveSerialReady = null;
     let pendingHeightMeasurement = null;
     let pendingWeightMeasurement = null;
     let pendingHeartRateMeasurement = null;
@@ -236,6 +239,10 @@
         }
 
         await serialPort.open({ baudRate: SERIAL_BAUD_RATE });
+        serialReady = false;
+        serialReadyPromise = new Promise(resolve => {
+          resolveSerialReady = resolve;
+        });
 
         if (!serialWriter) {
           serialWriter = serialPort.writable.getWriter();
@@ -254,8 +261,8 @@
     }
 
     async function sendSerialCommand(command) {
-      const connected = await ensureSerialConnection();
-      if (!connected) {
+      const ready = await ensureSerialReady();
+      if (!ready) {
         return false;
       }
 
@@ -268,6 +275,24 @@
         console.error('Serial write failed:', error);
         return false;
       }
+    }
+
+    async function ensureSerialReady() {
+      const connected = await ensureSerialConnection();
+      if (!connected) {
+        return false;
+      }
+
+      if (serialReady) {
+        return true;
+      }
+
+      if (!serialReadyPromise) {
+        return false;
+      }
+
+      console.info('[MediPoint] Waiting for Arduino readiness.');
+      return await serialReadyPromise;
     }
 
     async function sendSerialRefresh() {
@@ -297,8 +322,16 @@
           lines.forEach(line => {
             const message = line.trim();
             if (!message) return;
+            console.log(`[Arduino] ${message}`);
 
-            if (message.startsWith('HEIGHT_RESULT:')) {
+            if (/^STATUS:\s*System ready$/i.test(message)) {
+              serialReady = true;
+              if (resolveSerialReady) {
+                resolveSerialReady(true);
+                resolveSerialReady = null;
+              }
+              console.info('[MediPoint] Arduino is ready to receive commands.');
+            } else if (message.startsWith('HEIGHT_RESULT:')) {
               const rawValue = parseFloat(message.split(':')[1] || '');
               if (!Number.isNaN(rawValue)) {
                 pendingHeightMeasurement = rawValue;
@@ -612,6 +645,42 @@
       }
     }
 
+    async function fetchBloodPressureMonitor(path, options = {}) {
+      const apiUrl = window.MediPointCareMate && window.MediPointCareMate.getApiUrl
+        ? window.MediPointCareMate.getApiUrl()
+        : 'http://127.0.0.1:8000';
+      const response = await fetch(`${apiUrl}${path}`, {
+        headers: { 'Content-Type': 'application/json' },
+        ...options,
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.detail || data.error || 'Blood pressure monitor request failed.');
+      }
+      return data;
+    }
+
+    async function waitForLatestBloodPressureReading(timeoutMs = 120000, afterRevision = 0) {
+      const timeoutSeconds = Math.max(1, Math.ceil(timeoutMs / 1000));
+
+      try {
+        const response = await fetchBloodPressureMonitor(`/bp/wait?timeout_seconds=${timeoutSeconds}&after_revision=${afterRevision}`, { method: 'POST' });
+        const latest = response && response.latest ? response.latest : null;
+        if (latest && Number.isFinite(Number(latest.systolic)) && Number.isFinite(Number(latest.diastolic))) {
+          return {
+            systolic: Number(latest.systolic),
+            diastolic: Number(latest.diastolic),
+            pulse: latest.pulse !== null && latest.pulse !== undefined ? Number(latest.pulse) : null,
+            timestamp: latest.timestamp || null,
+          };
+        }
+      } catch (error) {
+        console.warn('[MediPoint] Waiting for Microlife BP reading timed out or failed.', error);
+      }
+
+      return null;
+    }
+
     async function closeInstructionModal() {
       if (modalStartBtn.dataset.state === 'measuring') {
         return;
@@ -843,7 +912,7 @@
       const card = startBtn.closest('.vital-card');
       const title = startBtn.dataset.target || card.querySelector('h2').textContent.trim();
 
-      startBtn.addEventListener('click', () => {
+      startBtn.addEventListener('click', async () => {
         lastFocusedElement = startBtn;
         activeMeasurementButton = startBtn;
         const info = instructions[title] || { text: 'Follow the on-screen instructions to complete the measurement.', image: '../../images/abouticon.png' };
@@ -859,10 +928,22 @@
         modalStartBtn.dataset.target = title;
         modalStartBtn.dataset.state = 'ready';
         modalStartBtn.textContent = 'START';
-        modalStartBtn.disabled = false;
+        const usesArduinoSensor = ['Height', 'Weight', 'Heart Rate', 'Oxygen Saturation', 'Body Temperature'].includes(title);
+        modalStartBtn.disabled = usesArduinoSensor;
         modal.classList.remove('hidden');
         closeModal.focus();
         MediPointKioskAudio.speakInstructions(title, info);
+
+        if (usesArduinoSensor) {
+          updateModalStatus('Connecting to the sensor and waiting for the system to be ready...', false);
+          const ready = await ensureSerialReady();
+          if (activeMeasurementButton === startBtn && modalStartBtn.dataset.target === title) {
+            modalStartBtn.disabled = false;
+            updateModalStatus(ready
+              ? 'System ready. Press START when you are ready to measure.'
+              : 'Serial connection unavailable; START will use demo data.');
+          }
+        }
       });
     });
 
@@ -986,6 +1067,30 @@
         } else {
           updateModalStatus('Serial connection unavailable; continuing with demo data.');
         }
+      } else if (title === 'Blood Pressure') {
+        try {
+          const monitorStart = await fetchBloodPressureMonitor('/bp/start', { method: 'POST' });
+          updateModalStatus('Microlife monitor connected. Waiting for the most recent blood pressure result. This can take up to 1-2 minutes.');
+          const latestResult = await waitForLatestBloodPressureReading(120000, monitorStart.after_revision);
+          if (latestResult) {
+            result = {
+              title,
+              value: `${latestResult.systolic}/${latestResult.diastolic}`,
+              unit: 'mmHg',
+              status: getStatus(title, { systolic: latestResult.systolic, diastolic: latestResult.diastolic }),
+              note: latestResult.timestamp ? `Measured by Microlife monitor at ${latestResult.timestamp}.` : 'Measured from Microlife monitor.'
+            };
+            assessmentResults[title] = result;
+            updateModalStatus(`Measurement complete. Your blood pressure is ${result.value}. Using the newest Microlife reading.`);
+          } else {
+            result = null;
+            updateModalStatus('No Microlife reading was received within the wait window. Waiting for a valid reading before marking the monitor unavailable.');
+          }
+        } catch (error) {
+          console.warn('[MediPoint] Microlife monitor not available yet.', error);
+          result = null;
+          updateModalStatus('Microlife monitor is not available yet. Keeping the session open until a valid reading is received.');
+        }
       } else {
         updateModalStatus('Please stay still and do not talk while measuring.');
       }
@@ -1043,11 +1148,15 @@
           status: getStatus(title, { celsius: temperature }),
           note: 'Measured from Arduino sensor.'
         };
+      } else if (title === 'Blood Pressure') {
+        if (!result) {
+          result = createMeasurement(title);
+        }
       } else {
         result = createMeasurement(title);
       }
 
-      if (measurementType === null && serialOk) {
+      if (measurementType === null && serialOk && title !== 'Blood Pressure') {
         if (title === 'Height' || title === 'Weight' || title === 'Body Temperature') {
           updateModalStatus('No serial response received yet; using demo data.');
         } else if (title === 'Heart Rate' || title === 'Oxygen Saturation') {
