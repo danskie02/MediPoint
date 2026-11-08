@@ -33,24 +33,39 @@
     <section class="vital-grid">
 
   <div class="vital-card">
+      <button type="button" class="vital-card-close" aria-label="Close Height card">&times;</button>
     <div class="card-icon">
-      <img src="../../images/abouticon.png" alt="Height and Weight" />
+      <img src="../../images/abouticon.png" alt="Height" />
     </div>
 
     <div class="card-divider"></div>
 
     <div class="card-content">
-      <h2>Height & Weight</h2>
+      <h2>Height</h2>
       <hr />
-      <p>Measure your height and weight separately.</p>
-      <div class="button-group">
-        <button type="button" data-target="Height">Measure Height <span>›</span></button>
-        <button type="button" data-target="Weight">Measure Weight <span>›</span></button>
-      </div>
+      <p>Measure your standing height.</p>
+      <button type="button" data-target="Height">START <span>›</span></button>
     </div>
   </div>
 
   <div class="vital-card">
+    <button type="button" class="vital-card-close" aria-label="Close Weight card">&times;</button>
+    <div class="card-icon">
+      <img src="../../images/abouticon.png" alt="Weight" />
+    </div>
+
+    <div class="card-divider"></div>
+
+    <div class="card-content">
+      <h2>Weight</h2>
+      <hr />
+      <p>Measure your body weight.</p>
+      <button type="button" data-target="Weight">START <span>›</span></button>
+    </div>
+  </div>
+
+  <div class="vital-card" id="heartRateCard">
+    <button type="button" class="vital-card-close" aria-label="Close Heart Rate card">&times;</button>
     <div class="card-icon">
       <img src="../../images/heartrate.png" alt="Heart Rate" />
     </div>
@@ -60,12 +75,13 @@
     <div class="card-content">
       <h2>Heart Rate</h2>
       <hr />
-      <p>Measure your heart rate<br />(Beats Per Minute).</p>
-      <button>START <span>›</span></button>
+      <p>Pulse is measured with your blood pressure<br />(Beats Per Minute).</p>
+      <button type="button" data-target="Heart Rate">START <span>›</span></button>
     </div>
   </div>
 
   <div class="vital-card">
+    <button type="button" class="vital-card-close" aria-label="Close Oxygen Saturation card">&times;</button>
     <div class="card-icon">
       <img src="../../images/oxygensat.png" alt="Oxygen Saturation" />
     </div>
@@ -81,6 +97,7 @@
   </div>
 
   <div class="vital-card">
+    <button type="button" class="vital-card-close" aria-label="Close Body Temperature card">&times;</button>
     <div class="card-icon">
       <img src="../../images/bodytemp.png" alt="Body Temperature" />
     </div>
@@ -96,6 +113,7 @@
   </div>
 
   <div class="vital-card">
+    <button type="button" class="vital-card-close" aria-label="Close Blood Pressure card">&times;</button>
     <div class="card-icon">
       <img src="../../images/bp.png" alt="Blood Pressure" />
     </div>
@@ -106,21 +124,6 @@
       <h2>Blood Pressure</h2>
       <hr />
       <p>Measure your blood pressure<br />(Systolic / Diastolic).</p>
-      <button>START <span>›</span></button>
-    </div>
-  </div>
-
-  <div class="vital-card merged-away">
-    <div class="card-icon">
-      <img src="../../images/abouticon.png" alt="Weight and BMI" />
-    </div>
-
-    <div class="card-divider"></div>
-
-    <div class="card-content">
-      <h2>Weight & BMI</h2>
-      <hr />
-      <p>Measure your weight<br />and calculate BMI.</p>
       <button>START <span>›</span></button>
     </div>
   </div>
@@ -184,8 +187,8 @@
       window.location.replace('../system/doctor-portal.html');
     }
 
-    const cards = document.querySelectorAll('.vital-card:not(.merged-away)');
-    const actionButtons = document.querySelectorAll('.vital-card:not(.merged-away) button');
+    const cards = document.querySelectorAll('.vital-card');
+    const actionButtons = Array.from(document.querySelectorAll('.vital-card .card-content > button'));
     const modal = document.getElementById('instructionModal');
     const modalTitle = document.getElementById('modalTitle');
     const modalSubtitle = document.getElementById('modalSubtitle');
@@ -204,7 +207,10 @@
     const currentDate = document.getElementById('currentDate');
     const assessmentResults = {};
     let lastFocusedElement = null;
+    let measurementRunId = 0;
+    let measurementAbortController = null;
     const SERIAL_BAUD_RATE = 9600;
+    const SERIAL_READY_TIMEOUT_MS = 5000;
     const MIN_MEASURING_MS = 2000;
     let vitalAnimFrame = 0;
     let vitalAnimRunning = false;
@@ -260,9 +266,9 @@
       }
     }
 
-    async function sendSerialCommand(command) {
+    async function sendSerialCommand(command, runId = measurementRunId) {
       const ready = await ensureSerialReady();
-      if (!ready) {
+      if (!ready || runId !== measurementRunId) {
         return false;
       }
 
@@ -292,7 +298,13 @@
       }
 
       console.info('[MediPoint] Waiting for Arduino readiness.');
-      return await serialReadyPromise;
+      return await new Promise(resolve => {
+        const timeoutId = setTimeout(() => resolve(false), SERIAL_READY_TIMEOUT_MS);
+        serialReadyPromise.then(ready => {
+          clearTimeout(timeoutId);
+          resolve(ready);
+        });
+      });
     }
 
     async function sendSerialRefresh() {
@@ -438,7 +450,7 @@
       },
       'Blood Pressure': {
         sensor: 'Blood Pressure Cuff',
-        text: 'Rest your arm on the cuff and remain calm. The system will inflate the cuff and measure your blood pressure automatically.',
+        text: 'Rest your arm on the cuff and remain calm. The system will inflate the cuff and measure your blood pressure and pulse automatically.',
         image: '../../images/bp.png',
         unit: 'mmHg',
         steps: [
@@ -660,17 +672,23 @@
       return data;
     }
 
-    async function waitForLatestBloodPressureReading(timeoutMs = 120000, afterRevision = 0) {
+    async function waitForLatestBloodPressureReading(timeoutMs = 120000, afterRevision = 0, signal) {
       const timeoutSeconds = Math.max(1, Math.ceil(timeoutMs / 1000));
 
       try {
-        const response = await fetchBloodPressureMonitor(`/bp/wait?timeout_seconds=${timeoutSeconds}&after_revision=${afterRevision}`, { method: 'POST' });
+        const response = await fetchBloodPressureMonitor(`/bp/wait?timeout_seconds=${timeoutSeconds}&after_revision=${afterRevision}`, { method: 'POST', signal });
         const latest = response && response.latest ? response.latest : null;
-        if (latest && Number.isFinite(Number(latest.systolic)) && Number.isFinite(Number(latest.diastolic))) {
+        if (
+          latest &&
+          Number.isFinite(Number(latest.systolic)) &&
+          Number.isFinite(Number(latest.diastolic)) &&
+          latest.pulse !== null && latest.pulse !== undefined &&
+          Number.isFinite(Number(latest.pulse)) && Number(latest.pulse) > 0
+        ) {
           return {
             systolic: Number(latest.systolic),
             diastolic: Number(latest.diastolic),
-            pulse: latest.pulse !== null && latest.pulse !== undefined ? Number(latest.pulse) : null,
+            pulse: Number(latest.pulse),
             timestamp: latest.timestamp || null,
           };
         }
@@ -683,13 +701,20 @@
 
     async function closeInstructionModal() {
       if (modalStartBtn.dataset.state === 'measuring') {
-        return;
+        measurementRunId += 1;
+        measurementAbortController?.abort();
+        measurementAbortController = null;
+        modalStartBtn.dataset.state = 'ready';
+        modalStartBtn.disabled = false;
+        modalStartBtn.textContent = 'START';
       }
 
       MediPointKioskAudio.stop();
       hideMeasuringAnimation();
 
       if (allMeasurementsComplete()) {
+        await saveAssessment();
+        MediPointKioskAudio.stop();
         window.location.href = 'assessment-summary.html';
         return;
       }
@@ -742,11 +767,11 @@
       return 'Recorded';
     }
 
-    async function waitForSerialMeasurement(measurement, timeoutMs = 12000) {
+    async function waitForSerialMeasurement(measurement, timeoutMs = 12000, runId) {
       const start = performance.now();
       const interval = 100;
 
-      while (performance.now() - start < timeoutMs) {
+      while (runId === measurementRunId && performance.now() - start < timeoutMs) {
         if (measurement === 'height' && pendingHeightMeasurement !== null) {
           return true;
         }
@@ -903,8 +928,22 @@
     }
 
     function allMeasurementsComplete() {
-      return Object.keys(assessmentResults).length === actionButtons.length;
+      return actionButtons.every(button => {
+        const card = button.closest('.vital-card');
+        if (card.classList.contains('is-dismissed')) return true;
+        const title = button.dataset.target || card.querySelector('h2').textContent.trim();
+        return Boolean(assessmentResults[title]);
+      });
     }
+
+    document.querySelectorAll('.vital-card-close').forEach(closeButton => {
+      closeButton.addEventListener('click', () => {
+        const card = closeButton.closest('.vital-card');
+        card.classList.add('is-dismissed');
+        card.setAttribute('aria-hidden', 'true');
+        card.querySelector('.card-content > button').disabled = true;
+      });
+    });
 
     let activeMeasurementButton = null;
 
@@ -928,7 +967,7 @@
         modalStartBtn.dataset.target = title;
         modalStartBtn.dataset.state = 'ready';
         modalStartBtn.textContent = 'START';
-        const usesArduinoSensor = ['Height', 'Weight', 'Heart Rate', 'Oxygen Saturation', 'Body Temperature'].includes(title);
+        const usesArduinoSensor = ['Height', 'Weight', 'Oxygen Saturation', 'Body Temperature'].includes(title);
         modalStartBtn.disabled = usesArduinoSensor;
         modal.classList.remove('hidden');
         closeModal.focus();
@@ -941,7 +980,7 @@
             modalStartBtn.disabled = false;
             updateModalStatus(ready
               ? 'System ready. Press START when you are ready to measure.'
-              : 'Serial connection unavailable; START will use demo data.');
+              : 'Sensor unavailable. A clearly labeled demonstration value will be shown.', false);
           }
         }
       });
@@ -971,15 +1010,15 @@
       }
 
       if (modalStartBtn.dataset.state === 'summary') {
-        await saveAssessment();
-        MediPointKioskAudio.stop();
-        window.location.href = 'assessment-summary.html';
+        await closeInstructionModal();
         return;
       }
 
       const title = modalStartBtn.dataset.target;
       const selectedButton = activeMeasurementButton;
       const selectedCard = selectedButton ? selectedButton.closest('.vital-card') : Array.from(cards).find(card => card.querySelector('h2').textContent.trim() === title);
+      const runId = ++measurementRunId;
+      measurementAbortController = new AbortController();
 
       modalStartBtn.dataset.state = 'measuring';
       modalStartBtn.disabled = true;
@@ -1003,26 +1042,52 @@
 
         if (title === 'Height') {
           updateModalStatus('Activating height sensor...');
-          serialOk = await sendSerialCommand('MEASURE_HEIGHT');
+          serialOk = await sendSerialCommand('MEASURE_HEIGHT', runId);
           if (serialOk) {
             updateModalStatus('Height sensor activated. Please stay still while measuring.');
-            heightAvailable = await waitForSerialMeasurement('height', 12000);
+            heightAvailable = await waitForSerialMeasurement('height', 12000, runId);
+            if (runId !== measurementRunId) return;
             if (heightAvailable) measurementType = 'height';
           } else {
-            updateModalStatus('Serial connection unavailable; continuing with demo data.');
+              updateModalStatus('Sensor unavailable. A clearly labeled demonstration value will be shown.', false);
           }
         } else {
           updateModalStatus('Activating weight sensor...');
-          serialOk = await sendSerialCommand('MEASURE_WEIGHT');
+          serialOk = await sendSerialCommand('MEASURE_WEIGHT', runId);
           if (serialOk) {
             updateModalStatus('Weight sensor activated. Please stay still while measuring.');
-            weightAvailable = await waitForSerialMeasurement('weight', 12000);
+            weightAvailable = await waitForSerialMeasurement('weight', 12000, runId);
+            if (runId !== measurementRunId) return;
             if (weightAvailable) measurementType = 'weight';
           } else {
-            updateModalStatus('Serial connection unavailable; continuing with demo data.');
+              updateModalStatus('Sensor unavailable. A clearly labeled demonstration value will be shown.', false);
           }
         }
-      } else if (title === 'Heart Rate' || title === 'Oxygen Saturation') {
+      } else if (title === 'Heart Rate') {
+        try {
+          const response = await fetchBloodPressureMonitor('/bp/latest');
+          if (runId !== measurementRunId) return;
+          const latest = response && response.latest ? response.latest : null;
+          const pulse = latest && Number(latest.pulse);
+          if (!Number.isFinite(pulse) || pulse <= 0) {
+            throw new Error('No blood pressure pulse reading is available.');
+          }
+
+          result = {
+            title,
+            value: String(pulse),
+            unit: 'bpm',
+            status: getStatus(title, { bpm: pulse }),
+            note: latest.timestamp ? `Pulse measured by Microlife monitor at ${latest.timestamp}.` : 'Pulse measured by Microlife monitor.'
+          };
+          updateModalStatus(`Your latest blood pressure monitor pulse is ${pulse} beats per minute.`);
+        } catch (error) {
+          console.warn('[MediPoint] Latest Microlife pulse is unavailable.', error);
+          if (runId !== measurementRunId) return;
+          result = createMeasurement(title);
+          updateModalStatus('Blood pressure monitor unavailable. A clearly labeled demonstration value will be shown.', false);
+        }
+      } else if (title === 'Oxygen Saturation') {
         const alternateCached = title === 'Heart Rate'
           ? pendingSpO2Measurement !== null
           : pendingHeartRateMeasurement !== null;
@@ -1042,36 +1107,41 @@
           }
 
           updateModalStatus('Activating MAX30105 sensor...');
-          serialOk = await sendSerialCommand('MEASURE_MAX30105');
+          serialOk = await sendSerialCommand('MEASURE_MAX30105', runId);
           if (serialOk) {
             updateModalStatus('MAX30105 sensor activated. Please keep your finger steady.');
             if (title === 'Heart Rate') {
-              heartRateAvailable = await waitForSerialMeasurement('heartRate', 60000);
+              heartRateAvailable = await waitForSerialMeasurement('heartRate', 60000, runId);
+              if (runId !== measurementRunId) return;
               if (heartRateAvailable) measurementType = 'heartRate';
             } else {
-              spo2Available = await waitForSerialMeasurement('spo2', 60000);
+              spo2Available = await waitForSerialMeasurement('spo2', 60000, runId);
+              if (runId !== measurementRunId) return;
               if (spo2Available) measurementType = 'spo2';
             }
           } else {
-            updateModalStatus('Serial connection unavailable; continuing with demo data.');
+            updateModalStatus('Sensor unavailable. A clearly labeled demonstration value will be shown.', false);
           }
         }
       } else if (title === 'Body Temperature') {
         pendingTemperatureMeasurement = null;
         updateModalStatus('Activating temperature sensor...');
-        serialOk = await sendSerialCommand('MEASURE_TEMPERATURE');
+        serialOk = await sendSerialCommand('MEASURE_TEMPERATURE', runId);
         if (serialOk) {
           updateModalStatus('Temperature sensor activated. Please keep still while measuring.');
-          temperatureAvailable = await waitForSerialMeasurement('temperature', 12000);
+          temperatureAvailable = await waitForSerialMeasurement('temperature', 12000, runId);
+          if (runId !== measurementRunId) return;
           if (temperatureAvailable) measurementType = 'temperature';
         } else {
-          updateModalStatus('Serial connection unavailable; continuing with demo data.');
+          updateModalStatus('Sensor unavailable. A clearly labeled demonstration value will be shown.', false);
         }
       } else if (title === 'Blood Pressure') {
         try {
-          const monitorStart = await fetchBloodPressureMonitor('/bp/start', { method: 'POST' });
+          const monitorStart = await fetchBloodPressureMonitor('/bp/start', { method: 'POST', signal: measurementAbortController.signal });
+          if (runId !== measurementRunId) return;
           updateModalStatus('Microlife monitor connected. Waiting for the most recent blood pressure result. This can take up to 1-2 minutes.');
-          const latestResult = await waitForLatestBloodPressureReading(120000, monitorStart.after_revision);
+          const latestResult = await waitForLatestBloodPressureReading(120000, monitorStart.after_revision, measurementAbortController.signal);
+          if (runId !== measurementRunId) return;
           if (latestResult) {
             result = {
               title,
@@ -1081,19 +1151,22 @@
               note: latestResult.timestamp ? `Measured by Microlife monitor at ${latestResult.timestamp}.` : 'Measured from Microlife monitor.'
             };
             assessmentResults[title] = result;
-            updateModalStatus(`Measurement complete. Your blood pressure is ${result.value}. Using the newest Microlife reading.`);
+            updateModalStatus(`Measurement complete. Your blood pressure is ${result.value} and your pulse is ${latestResult.pulse} beats per minute.`);
           } else {
-            result = null;
-            updateModalStatus('No Microlife reading was received within the wait window. Waiting for a valid reading before marking the monitor unavailable.');
+            result = createMeasurement(title);
+            updateModalStatus('Blood pressure monitor did not provide a reading. A clearly labeled demonstration value will be shown.', false);
           }
         } catch (error) {
           console.warn('[MediPoint] Microlife monitor not available yet.', error);
-          result = null;
-          updateModalStatus('Microlife monitor is not available yet. Keeping the session open until a valid reading is received.');
+          if (runId !== measurementRunId) return;
+          result = createMeasurement(title);
+          updateModalStatus('Blood pressure monitor unavailable. A clearly labeled demonstration value will be shown.', false);
         }
       } else {
         updateModalStatus('Please stay still and do not talk while measuring.');
       }
+
+      if (runId !== measurementRunId) return;
 
       if (title === 'Height') {
         const height = heightAvailable ? Number(pendingHeightMeasurement.toFixed(1)) : randomNumber(150, 180, 1);
@@ -1121,15 +1194,6 @@
           status: 'Recorded',
           note
         };
-      } else if (measurementType === 'heartRate') {
-        const bpm = Number(pendingHeartRateMeasurement.toFixed(0));
-        result = {
-          title,
-          value: String(bpm),
-          unit: 'bpm',
-          status: getStatus(title, { bpm }),
-          note: 'Measured from Arduino sensor.'
-        };
       } else if (measurementType === 'spo2') {
         const spo2 = Number(pendingSpO2Measurement.toFixed(0));
         result = {
@@ -1152,17 +1216,22 @@
         if (!result) {
           result = createMeasurement(title);
         }
-      } else {
+      } else if (!result) {
         result = createMeasurement(title);
       }
 
-      if (measurementType === null && serialOk && title !== 'Blood Pressure') {
+      if (measurementType === null && serialOk && title !== 'Blood Pressure' && title !== 'Heart Rate') {
         if (title === 'Height' || title === 'Weight' || title === 'Body Temperature') {
-          updateModalStatus('No serial response received yet; using demo data.');
+          updateModalStatus('Sensor did not provide a reading. A clearly labeled demonstration value will be shown.', false);
         } else if (title === 'Heart Rate' || title === 'Oxygen Saturation') {
-          updateModalStatus('No sensor response received yet; using demo data.');
+          updateModalStatus('Sensor did not provide a reading. A clearly labeled demonstration value will be shown.', false);
         }
       }
+
+      if (title !== 'Heart Rate') {
+        await holdMeasuringAnimation(measuringStartedAt);
+      }
+      if (runId !== measurementRunId) return;
 
       assessmentResults[title] = result;
       if (selectedButton) {
@@ -1172,11 +1241,12 @@
         selectedCard.classList.add('completed');
       }
 
-      await holdMeasuringAnimation(measuringStartedAt);
-
-      const completionMessage = allMeasurementsComplete()
-        ? `Measurement complete. Your ${title} is ${result.value}. All measurements are finished. Press View Summary to continue.`
-        : `Measurement complete. Your ${title} is ${result.value}. Review your result before continuing.`;
+      const isDemonstrationValue = result.note && result.note.includes('Simulated demo value');
+      const completionMessage = isDemonstrationValue
+        ? 'Measurement complete. Review the displayed result before continuing.'
+        : allMeasurementsComplete()
+          ? `Measurement complete. Your ${title} is ${result.value}. All measurements are finished. Press View Summary to continue.`
+          : `Measurement complete. Your ${title} is ${result.value}. Review your result before continuing.`;
       updateModalStatus(completionMessage);
       renderModalResult(result);
       
@@ -1189,13 +1259,20 @@
         modalStartBtn.textContent = 'Close';
       }
       modalStartBtn.disabled = false;
+      measurementAbortController = null;
       } catch (error) {
+        if (runId !== measurementRunId) return;
         console.error('[MediPoint] Measurement failed.', error);
         hideMeasuringAnimation();
         modalStartBtn.dataset.state = 'ready';
         modalStartBtn.disabled = false;
         modalStartBtn.textContent = 'START';
-        updateModalStatus('Measurement could not be completed. Please try again.');
+        updateModalStatus(title === 'Blood Pressure'
+          ? 'No valid blood pressure and pulse reading was received. Check the monitor and try again.'
+          : title === 'Heart Rate'
+            ? 'No pulse reading is available yet. Measure blood pressure first, then try again.'
+            : 'Measurement could not be completed. Please try again.');
+          measurementAbortController = null;
       }
     });
 

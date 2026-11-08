@@ -21,7 +21,7 @@ The checks validate local asset links, duplicate IDs, basic tag balance, empty f
 
 ## Thermal printer
 
-The kiosk sends assessment results to the local ESC/POS print service. On the Raspberry Pi, connect and power on the USB printer, then check that `/dev/usb/lp0` exists. Start the web app from the repository root with `python3 -m http.server 5500` and open `http://127.0.0.1:5500/front/welcome.html`.
+The kiosk sends assessment results to the ESC/POS print service on the same host as the kiosk page. On the Raspberry Pi, connect and power on the USB printer, then check that `/dev/usb/lp0` exists. Start the web app from the repository root with `python3 -m http.server 5500` and open `http://127.0.0.1:5500/front/welcome.html`. The printer URL follows the page's hostname automatically, so `localhost` is not accidentally used when the page is opened through the Pi's network address.
 
 The print service runs separately from the web app:
 
@@ -29,13 +29,29 @@ The print service runs separately from the web app:
 python3 printer/print_server.py
 ```
 
-Keep it running while printing. Check `http://127.0.0.1:8765/health` for the service status. The service account needs write access to the printer device. If `/dev/usb/lp0` is owned by group `lp`, add the account that runs the service to that group, then sign out and back in:
+Keep it running while printing. Check `http://127.0.0.1:8765/health` for the service status when using the same machine. By default, the service listens on the Pi's network interfaces and allows HTTP requests from a kiosk page using the same hostname. Restrict port `8765` to the trusted local network with the Pi's firewall. If the kiosk is hosted on another machine or hostname, set the exact kiosk page origin in `MEDIPOINT_PRINTER_ALLOWED_ORIGINS`:
+
+```sh
+MEDIPOINT_PRINTER_ALLOWED_ORIGINS=http://raspberrypi.local:5500 \
+python3 printer/print_server.py
+```
+
+`MEDIPOINT_PRINTER_HOST` can limit the listener to a specific interface; its default is `0.0.0.0`. Only allow trusted kiosk origins and restrict port `8765` to the local network with the Pi's firewall. The service account needs write access to the printer device. If `/dev/usb/lp0` is owned by group `lp`, add the account that runs the service to that group, then sign out and back in:
 
 ```sh
 sudo usermod -aG lp "$USER"
 ```
 
-If the device appears at a different path, set `MEDIPOINT_PRINTER_DEVICE` before starting the service. Results are sent to the locally running service; opening the page as a `file://` URL or using a different machine's `localhost` will not reach it.
+If the device appears at a different path, set `MEDIPOINT_PRINTER_DEVICE` before starting the service. `window.MEDIPOINT_PRINTER_URL` can override the browser's automatically selected `http://<page-host>:8765` URL when the print service is hosted elsewhere.
+
+When opening the kiosk directly as a `file://` URL, browsers send the opaque origin `null`. To allow that local page, run the printer service on loopback with the `null` origin explicitly enabled:
+
+```sh
+MEDIPOINT_PRINTER_HOST=127.0.0.1 MEDIPOINT_PRINTER_ALLOWED_ORIGINS=null \
+python3 printer/print_server.py
+```
+
+Do not expose a service that allows the `null` origin on a network interface. For kiosk pages served over HTTP, leave `MEDIPOINT_PRINTER_ALLOWED_ORIGINS` unset unless the kiosk uses a different host; same-host origins are allowed automatically.
 
 ## CareMate AI model
 

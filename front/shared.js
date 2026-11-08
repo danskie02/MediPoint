@@ -2,6 +2,7 @@
   'use strict';
 
   const SESSION_KEY = 'medipointSession';
+  const CLINIC_REQUESTS_KEY = 'medipointClinicRequests';
   const PORTAL_ACCOUNT_PREFIX = 'portalAccount_';
   const PORTAL_PROFILE_PREFIX = 'portalProfile_';
   const CLINICAL_ACCOUNT = Object.freeze({
@@ -343,6 +344,187 @@
     return Array.isArray(records) ? records : [];
   }
 
+  function doctorFollowUpKey(patientId) {
+    return `doctorFollowUp_${normalizeId(patientId)}`;
+  }
+
+  function getDoctorFollowUp(patientId) {
+    if (!normalizeId(patientId)) return null;
+    return readJSON(localStorage, doctorFollowUpKey(patientId), null);
+  }
+
+  function saveDoctorFollowUp(patientId, followUp) {
+    if (!normalizeId(patientId)) throw new Error('A patient ID is required.');
+
+    const previous = getDoctorFollowUp(patientId);
+    const updatedAt = new Date().toISOString();
+    const record = {
+      status: normalizeId(followUp && followUp.status) || 'New',
+      assignedTo: String(followUp && followUp.assignedTo || '').trim(),
+      dueDate: normalizeId(followUp && followUp.dueDate),
+      note: String(followUp && followUp.note || '').trim(),
+      updatedAt,
+      updatedBy: String(followUp && followUp.updatedBy || '').trim(),
+      history: [
+        ...(Array.isArray(previous && previous.history) ? previous.history : []),
+        {
+          status: normalizeId(followUp && followUp.status) || 'New',
+          assignedTo: String(followUp && followUp.assignedTo || '').trim(),
+          dueDate: normalizeId(followUp && followUp.dueDate),
+          note: String(followUp && followUp.note || '').trim(),
+          updatedAt,
+          updatedBy: String(followUp && followUp.updatedBy || '').trim()
+        }
+      ]
+    };
+
+    localStorage.setItem(doctorFollowUpKey(patientId), JSON.stringify(record));
+    return record;
+  }
+
+  function getClinicRequests() {
+    const requests = readJSON(localStorage, CLINIC_REQUESTS_KEY, []);
+    return Array.isArray(requests) ? requests : [];
+  }
+
+  function getClinicRequestsForUser(patientId) {
+    const id = normalizeId(patientId);
+    return id ? getClinicRequests().filter(request => request.patientId === id) : [];
+  }
+
+  function createClinicRequest(request) {
+    const patientId = normalizeId(request && request.patientId);
+    if (!patientId) throw new Error('Sign in before requesting clinic follow-up.');
+
+    const now = new Date().toISOString();
+    const record = {
+      requestId: globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function'
+        ? globalThis.crypto.randomUUID()
+        : `request-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      patientId,
+      patientName: String(request.patientName || '').trim(),
+      type: request.type === 'Appointment' ? 'Appointment' : 'Follow-up',
+      preferredDate: normalizeId(request.preferredDate),
+      message: String(request.message || '').trim(),
+      status: 'Submitted',
+      requestedAt: now,
+      updatedAt: now,
+      staffNote: '',
+      scheduledAt: '',
+      history: [{ status: 'Submitted', at: now, note: 'Request submitted by user.' }]
+    };
+
+    localStorage.setItem(CLINIC_REQUESTS_KEY, JSON.stringify([...getClinicRequests(), record]));
+    return record;
+  }
+
+  function updateClinicRequest(requestId, update) {
+    const allowedStatuses = ['Contacted', 'Scheduled', 'Resolved'];
+    const status = normalizeId(update && update.status);
+    if (!allowedStatuses.includes(status)) throw new Error('Choose a valid request status.');
+
+    const requests = getClinicRequests();
+    const index = requests.findIndex(request => request.requestId === requestId);
+    if (index < 0) throw new Error('Clinic request was not found.');
+
+    const previous = requests[index];
+    const now = new Date().toISOString();
+    const staffNote = String(update && update.staffNote || '').trim();
+    const scheduledAt = status === 'Scheduled'
+      ? normalizeId(update && update.scheduledAt)
+      : previous.scheduledAt || '';
+    const next = {
+      ...previous,
+      status,
+      staffNote,
+      scheduledAt,
+      updatedAt: now,
+      updatedBy: String(update && update.updatedBy || '').trim(),
+      history: [
+        ...(Array.isArray(previous.history) ? previous.history : []),
+        { status, at: now, note: staffNote, scheduledAt, updatedBy: String(update && update.updatedBy || '').trim() }
+      ]
+    };
+
+    requests[index] = next;
+    localStorage.setItem(CLINIC_REQUESTS_KEY, JSON.stringify(requests));
+    return next;
+  }
+
+  function buildHealthTimeline(assessments, followUp, includeStaffNotes = false, clinicRequests = []) {
+    const records = Array.isArray(assessments) ? assessments : [];
+    const orderedRecords = [...records].sort((first, second) =>
+      new Date(first.date || 0).getTime() - new Date(second.date || 0).getTime()
+    );
+    const previousReadings = new Map();
+    const events = orderedRecords.map(record => {
+      const date = record.date || '';
+      const readings = (Array.isArray(record.results) ? record.results : [])
+        .filter(result => result && result.type !== 'caremate' && result.title !== '__caremate__')
+        .map(result => {
+          const title = String(result.title || 'Measurement');
+          const key = title.trim().toLowerCase();
+          const previous = previousReadings.get(key) || null;
+          const reading = {
+            title,
+            value: String(result.value ?? ''),
+            unit: String(result.unit || ''),
+            status: String(result.status || 'Recorded'),
+            note: String(result.note || ''),
+            previous
+          };
+          previousReadings.set(key, { value: reading.value, unit: reading.unit, date });
+          return reading;
+        });
+      const noteText = readings.map(reading => reading.note.toLowerCase()).join(' ');
+      const simulated = Boolean(record.isSimulated || /simulat|demo value/.test(noteText));
+
+      return {
+        type: 'assessment',
+        date,
+        source: record.source || (simulated ? 'Kiosk · simulated demo' : 'MediPoint kiosk'),
+        context: String(record.context || record.program || ''),
+        readings,
+        simulated
+      };
+    });
+
+    const followUpEvents = Array.isArray(followUp && followUp.history) ? followUp.history : [];
+    const updates = followUpEvents.length ? followUpEvents : (followUp && followUp.updatedAt ? [followUp] : []);
+    updates.forEach(update => {
+      events.push({
+        type: 'follow-up',
+        date: update.updatedAt || '',
+        status: String(update.status || 'New'),
+        assignedTo: String(update.assignedTo || ''),
+        dueDate: String(update.dueDate || ''),
+        note: includeStaffNotes ? String(update.note || '') : ''
+      });
+    });
+
+    (Array.isArray(clinicRequests) ? clinicRequests : []).forEach(request => {
+      const requestHistory = Array.isArray(request.history) && request.history.length
+        ? request.history
+        : [{ status: request.status, at: request.updatedAt || request.requestedAt }];
+      requestHistory.forEach(update => {
+        events.push({
+          type: 'clinic-request',
+          date: update.at || request.requestedAt || '',
+          requestType: String(request.type || 'Follow-up'),
+          status: String(update.status || request.status || 'Submitted'),
+          scheduledAt: String(update.scheduledAt || (
+            ['Scheduled', 'Resolved'].includes(update.status) ? request.scheduledAt : ''
+          ) || ''),
+          note: includeStaffNotes ? String(update.note || request.message || '') : ''
+        });
+      });
+    });
+
+    return events.sort((first, second) =>
+      new Date(second.date || 0).getTime() - new Date(first.date || 0).getTime()
+    );
+  }
+
   function saveAssessment(user, assessment) {
     const id = getPublicIdNumber(user);
     if(!id) throw new Error('Sign in before saving an assessment.');
@@ -394,6 +576,35 @@
       .replaceAll('>', '&gt;')
       .replaceAll('"', '&quot;')
       .replaceAll("'", '&#39;');
+  }
+
+  function showPortalDetailDialog(title, content) {
+    let dialog = document.getElementById('portalDetailDialog');
+    if(!dialog){
+      dialog = document.createElement('dialog');
+      dialog.id = 'portalDetailDialog';
+      dialog.className = 'portal-detail-dialog';
+      dialog.setAttribute('aria-labelledby', 'portalDetailDialogTitle');
+      dialog.innerHTML = `
+        <div class="portal-dialog-shell">
+          <header class="portal-dialog-header">
+            <h2 id="portalDetailDialogTitle"></h2>
+            <button type="button" class="portal-dialog-close">Close</button>
+          </header>
+          <div class="portal-dialog-content"></div>
+        </div>
+      `;
+      document.body.append(dialog);
+      dialog.querySelector('.portal-dialog-close').addEventListener('click', () => dialog.close());
+      dialog.addEventListener('click', event => {
+        if(event.target === dialog) dialog.close();
+      });
+    }
+
+    dialog.querySelector('#portalDetailDialogTitle').textContent = title;
+    dialog.querySelector('.portal-dialog-content').innerHTML = content;
+    if(!dialog.open) dialog.showModal();
+    return dialog;
   }
 
   function routeFor(user, base) {
@@ -471,10 +682,18 @@
     authenticatePortalIdentity,
     saveUser,
     getMeasurements,
+    getDoctorFollowUp,
+    saveDoctorFollowUp,
+    getClinicRequests,
+    getClinicRequestsForUser,
+    createClinicRequest,
+    updateClinicRequest,
+    buildHealthTimeline,
     fetchAssessmentsFromDatabase,
     saveAssessment,
     getLatestAssessment,
     escapeHTML,
+    showPortalDetailDialog,
     getKioskQrPayload,
     routeFor
   };

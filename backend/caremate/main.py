@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
@@ -11,14 +12,30 @@ from pydantic import BaseModel, Field
 from predict import load_artifacts, predict_assessment
 from test_bp import BloodPressureMonitorService
 
+def get_allowed_origins() -> list[str]:
+    configured = os.getenv("CAREMATE_ALLOWED_ORIGINS", "")
+    if configured:
+        origins = [item.strip() for item in configured.split(",") if item.strip()]
+        if origins:
+            return origins
+
+    return [
+        "http://127.0.0.1:5500",
+        "http://localhost:5500",
+        "http://127.0.0.1:8000",
+        "http://localhost:8000",
+        "null",
+    ]
+
+
 app = FastAPI(title="MediPoint CareMate API", version="1.0.0")
 monitor_service = BloodPressureMonitorService()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=get_allowed_origins(),
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 

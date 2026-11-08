@@ -75,6 +75,7 @@
     event.preventDefault();
     const data = new FormData(loginForm);
     const message = document.getElementById('loginMessage');
+    let remoteUnavailable = false;
     try {
       if(typeof window.MediPointKioskApi !== 'undefined' && window.MEDIPOINT_SUPABASE_URL && window.MEDIPOINT_SUPABASE_ANON_KEY) {
         try {
@@ -97,13 +98,16 @@
             return;
           }
         } catch (error) {
+          remoteUnavailable = !Number.isInteger(error && error.status);
           console.warn('Supabase portal login failed; trying local account.', error);
         }
       }
 
       const localResult = authenticateLocalPortalUser(data.get('name'), data.get('idNumber'));
       if (localResult.error) {
-        showMessage(message, localResult.error, true);
+        showMessage(message, remoteUnavailable
+          ? 'Could not connect to the online login service. Check the internet connection and try again.'
+          : localResult.error, true);
         return;
       }
       showMessage(message, 'Account verified. Opening your portal...', false);

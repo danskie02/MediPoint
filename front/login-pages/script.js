@@ -222,6 +222,7 @@ async function continueLogin(){
     }
 
     const requestedRole = getRequestedRole();
+    let remoteUnavailable = false;
 
     if(typeof window.MediPointKioskApi !== "undefined" &&
        window.MEDIPOINT_SUPABASE_URL &&
@@ -253,6 +254,7 @@ async function continueLogin(){
                 return;
             }
         } catch (error) {
+            remoteUnavailable = !Number.isInteger(error && error.status);
             console.warn("Supabase login failed; falling back to local login.", error);
         }
     }
@@ -264,7 +266,9 @@ async function continueLogin(){
     ) || null;
 
     if(!matchedUser){
-        alert("Incorrect Full Name or Student Number / Personnel ID.");
+        alert(remoteUnavailable
+            ? "Could not connect to the online login service. Check the internet connection and try again."
+            : "Incorrect Full Name or Student Number / Personnel ID.");
         return;
     }
 

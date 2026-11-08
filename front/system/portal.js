@@ -44,6 +44,10 @@ const reportIssueBtn = document.getElementById('reportIssueBtn');
 
 const resultsGrid = document.getElementById('resultsGrid');
 const historyList = document.getElementById('historyList');
+const portalReminder = document.getElementById('portalReminder');
+const clinicRequestForm = document.getElementById('clinicRequestForm');
+const userClinicRequestList = document.getElementById('userClinicRequestList');
+const clinicRequestMessageStatus = document.getElementById('clinicRequestMessageStatus');
 
 const searchInput = document.getElementById('searchInput');
 const exportBtn = document.getElementById('exportBtn');
@@ -67,6 +71,8 @@ const userInfoForm = document.getElementById('userInfoForm');
 const setupNotice = document.getElementById('setupNotice');
 
 let activeFilter = 'All';
+let displayedHistoryEvents = [];
+let displayedClinicRequests = [];
 
 const currentUser = MediPoint.getCurrentUser();
 const currentPage = window.location.pathname.split('/').pop() || 'portal.html';
@@ -194,6 +200,7 @@ async function bootstrapPortal(){
   void renderResults();
   void renderAssessment();
   void renderHistory();
+  renderClinicRequests();
   void renderProfileSnapshot();
 }
 
@@ -251,11 +258,8 @@ async function getMeasurements(){
   }
 
   const remoteAssessments = await MediPoint.fetchAssessmentsFromDatabase(current);
-  if (remoteAssessments !== null) {
-    return remoteAssessments;
-  }
-
-  return MediPoint.getMeasurements(idNumber);
+  const records = remoteAssessments !== null ? remoteAssessments : MediPoint.getMeasurements(idNumber);
+  return records.sort((first, second) => new Date(second.date || 0) - new Date(first.date || 0));
 }
 
 function normalizeStatus(status){
@@ -669,40 +673,252 @@ async function renderHistory(){
   }
 
   const measurements = await getMeasurements();
+  const followUp = MediPoint.getDoctorFollowUp(userId);
+  const requests = MediPoint.getClinicRequestsForUser(userId);
+  const events = MediPoint.buildHealthTimeline(measurements, followUp, false, requests);
 
-  if(!measurements.length){
+  if(!events.length){
+    displayedHistoryEvents = [];
     historyList.innerHTML = `<div class="empty">No history available.</div>`;
     return;
   }
 
-  historyList.innerHTML = measurements.map((record, index) => {
-    const date = new Date(record.date).toLocaleString('en-US', {
-      month:'long',
-      day:'numeric',
-      year:'numeric',
-      hour:'2-digit',
-      minute:'2-digit'
-    });
+  displayedHistoryEvents = events.map(event => {
+    if(event.type !== 'clinic-request') return event;
+    const request = requests.find(item => item.type === event.requestType &&
+      (Array.isArray(item.history) && item.history.length ? item.history : [{ status: item.status, at: item.updatedAt || item.requestedAt }]).some(update =>
+        (update.at || item.requestedAt) === event.date && (update.status || item.status) === event.status
+      ));
+    return { ...event, request };
+  });
 
-    const total = record.results ? record.results.length : 0;
-    const status = getAssessmentStatusFor(record);
-    const summary = getAssessmentSummaryFor(record);
+  historyList.innerHTML = `
+    <div class="portal-table-scroll">
+      <table class="portal-data-table history-data-table">
+        <thead><tr><th scope="col">Date</th><th scope="col">Record</th><th scope="col">Summary</th><th scope="col">Status</th><th scope="col"><span class="visually-hidden">Details</span></th></tr></thead>
+        <tbody>${displayedHistoryEvents.map((event, index) => {
+          const record = getHistoryRecordLabel(event);
+          const status = getHistoryRecordStatus(event);
+          return `
+            <tr>
+              <td data-label="Date">${MediPoint.escapeHTML(formatTimelineDate(event.date))}</td>
+              <td data-label="Record"><strong>${MediPoint.escapeHTML(record)}</strong></td>
+              <td data-label="Summary">${MediPoint.escapeHTML(getHistoryRecordSummary(event))}</td>
+              <td data-label="Status"><span class="portal-status-pill ${getHistoryStatusClass(status)}">${MediPoint.escapeHTML(status)}</span></td>
+              <td data-label="Details"><button type="button" class="portal-table-action" data-history-index="${index}">View details</button></td>
+            </tr>
+          `;
+        }).join('')}</tbody>
+      </table>
+    </div>
+  `;
+}
 
-    return `
-      <div class="history-item">
-        <div>
-          <strong>Assessment ${index + 1}</strong>
-          <br>
-          <span>${date}</span>
-        </div>
-        <div>
-          <div><strong>${MediPoint.escapeHTML(status)}</strong></div>
-          <div><small>${MediPoint.escapeHTML(summary)}</small></div>
-          <div><span>${total} results</span></div>
-        </div>
+function getHistoryRecordLabel(event){
+  if(event.type === 'assessment') return 'Health assessment';
+  if(event.type === 'clinic-request') return `${event.requestType} request`;
+  return 'Follow-up update';
+}
+
+function getHistoryRecordStatus(event){
+  if(event.type !== 'assessment') return event.status || 'Recorded';
+  const statuses = event.readings.map(reading => normalizeStatus(reading.status));
+  if(statuses.includes('Critical')) return 'Critical';
+  if(statuses.includes('Warning')) return 'Warning';
+  if(statuses.includes('Recorded')) return 'Recorded';
+  return event.readings.length ? 'Normal' : 'Recorded';
+}
+
+function getHistoryStatusClass(status){
+  const value = String(status || '').toLowerCase();
+  return ['normal', 'warning', 'critical', 'submitted', 'contacted', 'scheduled', 'resolved'].includes(value)
+    ? value
+    : getStatusClass(status);
+}
+
+function getHistoryRecordSummary(event){
+  if(event.type === 'assessment'){
+    const count = event.readings.length;
+    return `${count} ${count === 1 ? 'measurement' : 'measurements'} · ${event.source || 'MediPoint kiosk'}`;
+  }
+  if(event.type === 'clinic-request'){
+    return event.request?.message || `${event.requestType} request status update`;
+  }
+  const assigned = event.assignedTo ? `Assigned to ${event.assignedTo}` : 'Clinic follow-up';
+  return event.dueDate ? `${assigned} · Due ${formatDate(event.dueDate)}` : assigned;
+}
+
+function getHistoryDetailMarkup(event){
+  const facts = [
+    ['Date', formatTimelineDate(event.date)],
+    ['Record', getHistoryRecordLabel(event)],
+    ['Status', getHistoryRecordStatus(event)]
+  ];
+
+  if(event.type === 'assessment'){
+    facts.push(['Source', event.source || 'MediPoint kiosk']);
+    if(event.context) facts.push(['Program / department', event.context]);
+    const readings = event.readings.length ? event.readings.map(reading => `
+      <article class="portal-detail-reading">
+        <div><strong>${MediPoint.escapeHTML(reading.title)}</strong><span class="portal-status-pill ${getStatusClass(reading.status)}">${MediPoint.escapeHTML(getDisplayStatus(reading.status))}</span></div>
+        <p class="portal-detail-reading-value">${MediPoint.escapeHTML(reading.value)} ${MediPoint.escapeHTML(reading.unit || '')}</p>
+        ${reading.previous ? `<p>Previous: ${MediPoint.escapeHTML(reading.previous.value)} ${MediPoint.escapeHTML(reading.previous.unit)} · ${MediPoint.escapeHTML(formatTimelineDate(reading.previous.date))}</p>` : ''}
+        ${reading.note ? `<p>${MediPoint.escapeHTML(reading.note)}</p>` : ''}
+      </article>
+    `).join('') : '<p class="empty">No measurements were attached to this assessment.</p>';
+    return `${renderPortalDetailFacts(facts)}<section class="portal-dialog-section"><h3>Measurements</h3><div class="portal-detail-readings">${readings}</div></section>`;
+  }
+
+  if(event.type === 'clinic-request'){
+    const request = event.request;
+    if(request){
+      facts.push(['Preferred date', request.preferredDate ? formatDate(request.preferredDate) : 'Not specified']);
+      facts.push(['Scheduled date', request.scheduledAt ? formatDate(request.scheduledAt) : 'Not scheduled']);
+      return `${renderPortalDetailFacts(facts)}<section class="portal-dialog-section"><h3>Message to the clinic</h3><p>${MediPoint.escapeHTML(request.message || 'No message provided.')}</p></section>${request.staffNote ? `<section class="portal-dialog-section"><h3>Clinic update</h3><p>${MediPoint.escapeHTML(request.staffNote)}</p></section>` : ''}`;
+    }
+  }
+
+  facts.push(['Assigned to', event.assignedTo || 'Clinic follow-up']);
+  facts.push(['Due date', event.dueDate ? formatDate(event.dueDate) : 'Not set']);
+  return renderPortalDetailFacts(facts) + (event.note ? `<section class="portal-dialog-section"><h3>Update</h3><p>${MediPoint.escapeHTML(event.note)}</p></section>` : '');
+}
+
+function renderPortalDetailFacts(facts){
+  return `<dl class="portal-detail-facts">${facts.map(([label, value]) => `<div><dt>${MediPoint.escapeHTML(label)}</dt><dd>${MediPoint.escapeHTML(value)}</dd></div>`).join('')}</dl>`;
+}
+
+if(historyList){
+  historyList.addEventListener('click', event => {
+    const trigger = event.target.closest('[data-history-index]');
+    const record = trigger && displayedHistoryEvents[Number(trigger.dataset.historyIndex)];
+    if(record){
+      MediPoint.showPortalDetailDialog(getHistoryRecordLabel(record), getHistoryDetailMarkup(record));
+    }
+  });
+}
+
+function renderClinicRequests(){
+  if(!userClinicRequestList && !portalReminder) return;
+  const requests = MediPoint.getClinicRequestsForUser(userId)
+    .sort((first, second) => new Date(second.requestedAt || 0) - new Date(first.requestedAt || 0));
+  const openRequests = requests.filter(request => request.status !== 'Resolved');
+
+  if(portalReminder){
+    if(openRequests.length){
+      portalReminder.hidden = false;
+      portalReminder.innerHTML = `<strong>Clinic follow-up requested</strong><span>${openRequests.length === 1 ? 'Your request is' : `${openRequests.length} requests are`} ${MediPoint.escapeHTML(openRequests.map(request => request.status.toLowerCase()).join(', '))}. Check the status on your Requests page.</span><a href="requests.html">View request status</a>`;
+    }else{
+      portalReminder.hidden = true;
+      portalReminder.textContent = '';
+    }
+  }
+
+  if(!userClinicRequestList) return;
+  displayedClinicRequests = requests;
+
+  if(!requests.length){
+    userClinicRequestList.innerHTML = `
+      <div class="portal-table-scroll">
+        <table class="portal-data-table request-data-table">
+          <thead><tr><th scope="col">Request</th><th scope="col">Submitted</th><th scope="col">Preferred date</th><th scope="col">Status</th><th scope="col"><span class="visually-hidden">Details</span></th></tr></thead>
+          <tbody><tr><td colspan="5" class="portal-table-empty">You have not sent a clinic request.</td></tr></tbody>
+        </table>
       </div>
     `;
-  }).join('');
+    return;
+  }
+
+  userClinicRequestList.innerHTML = `
+    <div class="portal-table-scroll">
+      <table class="portal-data-table request-data-table">
+        <thead><tr><th scope="col">Request</th><th scope="col">Submitted</th><th scope="col">Preferred date</th><th scope="col">Status</th><th scope="col"><span class="visually-hidden">Details</span></th></tr></thead>
+        <tbody>${requests.map((request, index) => `
+          <tr>
+            <td data-label="Request"><strong>${MediPoint.escapeHTML(request.type)}</strong></td>
+            <td data-label="Submitted">${MediPoint.escapeHTML(formatTimelineDate(request.requestedAt))}</td>
+            <td data-label="Preferred date">${MediPoint.escapeHTML(request.preferredDate ? formatDate(request.preferredDate) : 'Not specified')}</td>
+            <td data-label="Status"><span class="portal-status-pill ${MediPoint.escapeHTML(String(request.status || '').toLowerCase())}">${MediPoint.escapeHTML(request.status)}</span></td>
+            <td data-label="Details"><button type="button" class="portal-table-action" data-request-index="${index}">View details</button></td>
+          </tr>
+        `).join('')}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function getClinicRequestDetailMarkup(request, status, date){
+  const facts = [
+    ['Request type', request.type || 'Follow-up'],
+    ['Status', status || request.status || 'Submitted'],
+    ['Submitted', formatTimelineDate(date || request.requestedAt)],
+    ['Preferred date', request.preferredDate ? formatDate(request.preferredDate) : 'Not specified'],
+    ['Scheduled date', request.scheduledAt ? formatDate(request.scheduledAt) : 'Not scheduled']
+  ];
+  const updates = (Array.isArray(request.history) ? request.history : []).map(update => `
+    <li><strong>${MediPoint.escapeHTML(update.status || 'Update')}</strong><span>${MediPoint.escapeHTML(formatTimelineDate(update.at || request.requestedAt))}</span>${update.note ? `<p>${MediPoint.escapeHTML(update.note)}</p>` : ''}</li>
+  `).join('');
+
+  return `${renderPortalDetailFacts(facts)}
+    <section class="portal-dialog-section"><h3>Message to the clinic</h3><p>${MediPoint.escapeHTML(request.message || 'No message provided.')}</p></section>
+    ${request.staffNote ? `<section class="portal-dialog-section"><h3>Latest clinic update</h3><p>${MediPoint.escapeHTML(request.staffNote)}</p></section>` : ''}
+    ${updates ? `<section class="portal-dialog-section"><h3>Request activity</h3><ol class="portal-request-history">${updates}</ol></section>` : ''}`;
+}
+
+if(userClinicRequestList){
+  userClinicRequestList.addEventListener('click', event => {
+    const trigger = event.target.closest('[data-request-index]');
+    const request = trigger && displayedClinicRequests[Number(trigger.dataset.requestIndex)];
+    if(request){
+      MediPoint.showPortalDetailDialog(`${request.type || 'Clinic'} request`, getClinicRequestDetailMarkup(request));
+    }
+  });
+}
+
+function submitClinicRequest(event){
+  event.preventDefault();
+  const data = new FormData(clinicRequestForm);
+  try {
+    MediPoint.createClinicRequest({
+      patientId: userId,
+      patientName: user.name,
+      type: data.get('type'),
+      preferredDate: data.get('preferredDate'),
+      message: data.get('message')
+    });
+    clinicRequestForm.reset();
+    setText(clinicRequestMessageStatus, 'Your request has been saved in this browser.');
+    renderClinicRequests();
+    void renderHistory();
+  } catch(error) {
+    setText(clinicRequestMessageStatus, error.message || 'Your request could not be saved.');
+  }
+}
+
+function formatTimelineDate(value){
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 'Date unavailable' : date.toLocaleString('en-US', {
+    month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit'
+  });
+}
+
+function getReadingChange(currentValue, previous, unit){
+  if(!previous || previous.unit !== unit) return '';
+
+  const currentPair = String(currentValue).match(/^\s*(-?\d+(?:\.\d+)?)\s*\/\s*(-?\d+(?:\.\d+)?)\s*$/);
+  const previousPair = String(previous.value).match(/^\s*(-?\d+(?:\.\d+)?)\s*\/\s*(-?\d+(?:\.\d+)?)\s*$/);
+  if(currentPair && previousPair){
+    const first = Number(currentPair[1]) - Number(previousPair[1]);
+    const second = Number(currentPair[2]) - Number(previousPair[2]);
+    return `${first > 0 ? '+' : ''}${first}/${second > 0 ? '+' : ''}${second} ${unit}`;
+  }
+
+  const currentNumber = String(currentValue).match(/^\s*(-?\d+(?:\.\d+)?)\s*$/);
+  const previousNumber = String(previous.value).match(/^\s*(-?\d+(?:\.\d+)?)\s*$/);
+  if(!currentNumber || !previousNumber) return '';
+
+  const difference = Number(currentNumber[1]) - Number(previousNumber[1]);
+  const formatted = Number.isInteger(difference) ? String(difference) : difference.toFixed(1);
+  return `${difference > 0 ? '+' : ''}${formatted} ${unit}`.trim();
 }
 
 function getAssessmentSummaryFor(record){
@@ -886,6 +1102,45 @@ function activateCurrentNav(){
 
     link.classList.remove('active');
   });
+}
+
+function setupMobilePortalNav(){
+  const sidePanel = document.querySelector('.side-panel');
+  const sideNav = sidePanel?.querySelector('.side-nav');
+  const brand = sidePanel?.querySelector('.brand-block');
+
+  if(!sidePanel || !sideNav || !brand){
+    return;
+  }
+
+  if(!sideNav.id){
+    sideNav.id = 'portalNavigationLinks';
+  }
+
+  const toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'side-panel-toggle';
+  toggle.textContent = 'Menu';
+  toggle.setAttribute('aria-controls', sideNav.id);
+  toggle.setAttribute('aria-expanded', 'false');
+
+  toggle.addEventListener('click', () => {
+    const expanded = toggle.getAttribute('aria-expanded') !== 'true';
+    sidePanel.classList.toggle('mobile-nav-expanded', expanded);
+    toggle.setAttribute('aria-expanded', String(expanded));
+    toggle.textContent = expanded ? 'Close menu' : 'Menu';
+  });
+
+  sideNav.addEventListener('click', event => {
+    if(event.target.closest('a')){
+      sidePanel.classList.remove('mobile-nav-expanded');
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.textContent = 'Menu';
+    }
+  });
+
+  sidePanel.classList.add('mobile-nav-enabled');
+  brand.insertAdjacentElement('afterend', toggle);
 }
 
 function fillUserInfoForm(){
@@ -1077,7 +1332,7 @@ async function submitUserInfo(event){
   window.location.href = 'portal.html';
 }
 
-document.querySelectorAll('.status-card').forEach(card => {
+document.querySelectorAll('.status-card[data-filter]').forEach(card => {
   card.addEventListener('click', () => {
     document.querySelectorAll('.status-card').forEach(item => {
       item.classList.remove('active');
@@ -1123,4 +1378,9 @@ if(userInfoForm){
   userInfoForm.addEventListener('submit', saveUserInfo);
 }
 
+if(clinicRequestForm){
+  clinicRequestForm.addEventListener('submit', submitClinicRequest);
+}
+
+setupMobilePortalNav();
 void bootstrapPortal();

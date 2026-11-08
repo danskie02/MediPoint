@@ -351,6 +351,14 @@
 
     </main>
 
+    <div class="print-status-overlay" id="printStatusModal" role="dialog" aria-modal="true" aria-labelledby="printStatusTitle" hidden>
+        <section class="print-status-card" id="printStatusCard">
+            <div class="print-status-icon is-printing" id="printStatusIcon" aria-hidden="true"></div>
+            <h2 id="printStatusTitle">Sending results to printer</h2>
+            <p id="printStatusMessage" role="status" aria-live="polite">Your assessment is being sent to the kiosk printer. Please wait.</p>
+            <button type="button" class="print-status-close" id="printStatusCloseBtn" hidden>Close</button>
+        </section>
+    </div>
 
     <!-- =====================================================
          JAVASCRIPT
@@ -410,6 +418,24 @@
 
             const headerPrintBtn =
                 document.getElementById("headerPrintBtn");
+
+            const printStatusModal =
+                document.getElementById("printStatusModal");
+
+            const printStatusCard =
+                document.getElementById("printStatusCard");
+
+            const printStatusIcon =
+                document.getElementById("printStatusIcon");
+
+            const printStatusTitle =
+                document.getElementById("printStatusTitle");
+
+            const printStatusMessage =
+                document.getElementById("printStatusMessage");
+
+            const printStatusCloseBtn =
+                document.getElementById("printStatusCloseBtn");
 
 
             /*
@@ -1136,9 +1162,21 @@
  */
 async function printAssessment(event) {
     const clickedButton = event.currentTarget;
+    if (printBtn.disabled || headerPrintBtn.disabled) return;
+
+    const pageHostname = window.location.hostname || "127.0.0.1";
+    const printerHost = pageHostname === "localhost" ? "127.0.0.1" : pageHostname;
+    const printerBaseUrl = String(
+        window.MEDIPOINT_PRINTER_URL ||
+        `http://${printerHost}:8765`
+    ).replace(/\/+$/, "");
 
     if (!resultsGrid.querySelector(".result-tile")) {
-        alert("No assessment results are available to print.");
+        showPrintStatus(
+            "error",
+            "No results to print",
+            "No assessment results are available to print."
+        );
         return;
     }
 
@@ -1177,12 +1215,19 @@ async function printAssessment(event) {
     };
 
     const originalButtonText = clickedButton.textContent.trim();
-    clickedButton.disabled = true;
+    let printSucceeded = false;
+    printBtn.disabled = true;
+    headerPrintBtn.disabled = true;
     clickedButton.textContent = "Printing...";
+    showPrintStatus(
+        "printing",
+        "Sending results to printer",
+        "Your assessment is being sent to the kiosk printer. Please wait."
+    );
 
     try {
         const response = await fetch(
-            "http://127.0.0.1:8765/print",
+            `${printerBaseUrl}/print`,
             {
                 method: "POST",
                 headers: {
@@ -1200,23 +1245,68 @@ async function printAssessment(event) {
             );
         }
 
-        alert("Assessment sent to the MediPoint printer.");
+        let responseData = {};
+        try {
+            responseData = JSON.parse(responseText);
+        } catch {
+            responseData = {};
+        }
+        if (responseData.ok === false) {
+            throw new Error(responseData.message || "The printer could not accept the assessment.");
+        }
+
+        printSucceeded = true;
+        showPrintStatus(
+            "success",
+            "Results sent to printer",
+            "Your assessment was sent to the printer. The kiosk will now sign out and return to the welcome page."
+        );
+        await new Promise(resolve => window.setTimeout(resolve, 2500));
+        MediPointKioskAudio.stop();
+        MediPoint.clearCurrentUser();
+        window.location.replace("../welcome.html");
 
     } catch (error) {
         console.error("MediPoint printer error:", error);
 
-        alert(
-            "Unable to print the assessment.\n\n" +
-            "Check that the printer service is running on the Raspberry Pi, " +
-            "then check the browser console if the problem continues.\n\n" +
-            "Details: " + error.message
+        showPrintStatus(
+            "error",
+            "Unable to print results",
+            "Check that the printer service is running and reachable at " +
+            printerBaseUrl + ". Details: " + error.message
         );
 
     } finally {
-        clickedButton.disabled = false;
-        clickedButton.textContent = originalButtonText;
+        if (!printSucceeded) {
+            printBtn.disabled = false;
+            headerPrintBtn.disabled = false;
+            clickedButton.textContent = originalButtonText;
+        }
     }
 }
+
+function showPrintStatus(state, title, message) {
+    printStatusModal.hidden = false;
+    printStatusCard.classList.toggle("is-error", state === "error");
+    printStatusCard.classList.toggle("is-success", state === "success");
+    printStatusIcon.className = "print-status-icon";
+    printStatusIcon.textContent = state === "success" ? "✓" : state === "error" ? "!" : "";
+    if (state === "printing") printStatusIcon.classList.add("is-printing");
+    printStatusTitle.textContent = title;
+    printStatusMessage.textContent = message;
+    printStatusCloseBtn.hidden = state !== "error";
+    if (state === "error") printStatusCloseBtn.focus();
+}
+
+printStatusCloseBtn.addEventListener("click", function () {
+    printStatusModal.hidden = true;
+});
+
+printStatusModal.addEventListener("click", function (event) {
+    if (event.target === printStatusModal && !printStatusCloseBtn.hidden) {
+        printStatusModal.hidden = true;
+    }
+});
 
 printBtn.addEventListener("click", printAssessment);
 headerPrintBtn.addEventListener("click", printAssessment);

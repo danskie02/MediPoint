@@ -338,6 +338,7 @@
   height: 290px;
 }
 
+.metric-row {
   display: grid;
   grid-template-columns: 130px minmax(0, 1fr) 45px;
   align-items: center;

@@ -38,7 +38,9 @@
 
     if (!response.ok) {
       const message = data.error || data.message || 'Kiosk login request failed.';
-      throw new Error(message);
+      const error = new Error(message);
+      error.status = response.status;
+      throw error;
     }
 
     return data;
