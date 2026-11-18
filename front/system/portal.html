@@ -30,7 +30,7 @@
         <a href="results.html"><svg class="nav-icon" aria-hidden="true"><use href="nav-icons.svg#results"></use></svg> Latest Results</a>
         <a href="assessment.html"><svg class="nav-icon" aria-hidden="true"><use href="nav-icons.svg#assessment"></use></svg> Analytics</a>
         <a href="history.html"><svg class="nav-icon" aria-hidden="true"><use href="nav-icons.svg#history"></use></svg> History</a>
-        <a href="requests.html"><svg class="nav-icon" aria-hidden="true"><use href="nav-icons.svg#assessment"></use></svg> Requests</a>
+        <a href="requests.html"><svg class="nav-icon" aria-hidden="true"><use href="nav-icons.svg#requests"></use></svg> Requests</a>
       </nav>
 
       <div class="side-footer">
@@ -48,7 +48,7 @@
 
         <div class="header-actions">
           <span id="todayStamp">Today</span>
-          <a href="../index.html" class="home-btn">Home</a>
+          <button type="button" class="home-btn" data-portal-logout>Logout</button>
         </div>
       </header>
 
@@ -71,26 +71,41 @@
 
         <section class="status-row overview-status-row" aria-label="Latest result counts">
           <article class="status-card all">
+            <span class="status-card-icon" aria-hidden="true"><svg><use href="nav-icons.svg#results"></use></svg></span>
             <span>All Results</span>
             <strong id="allCount">0</strong>
           </article>
 
           <article class="status-card normal">
+            <span class="status-card-icon" aria-hidden="true"><svg><use href="nav-icons.svg#status-normal"></use></svg></span>
             <span>Normal</span>
             <strong id="normalCount">0</strong>
           </article>
 
           <article class="status-card warning">
+            <span class="status-card-icon" aria-hidden="true"><svg><use href="nav-icons.svg#status-warning"></use></svg></span>
             <span>Warning</span>
             <strong id="warningCount">0</strong>
           </article>
 
           <article class="status-card critical">
+            <span class="status-card-icon" aria-hidden="true"><svg><use href="nav-icons.svg#status-critical"></use></svg></span>
             <span>Critical</span>
             <strong id="criticalCount">0</strong>
           </article>
         </section>
 
+        <section class="latest-checkin" aria-labelledby="latestCheckinHeading">
+          <span class="latest-checkin-icon" aria-hidden="true">
+            <svg><use href="nav-icons.svg#history"></use></svg>
+          </span>
+          <div class="latest-checkin-copy">
+            <h2 id="latestCheckinHeading">Latest check-in</h2>
+            <p id="latestCheckinText">Loading your latest readings...</p>
+          </div>
+          <time id="latestCheckinDate"></time>
+          <a href="results.html">View latest results <span aria-hidden="true">›</span></a>
+        </section>
       </main>
     </div>
   </div>

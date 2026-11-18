@@ -56,6 +56,8 @@ const normalCount = document.getElementById('normalCount');
 const warningCount = document.getElementById('warningCount');
 const criticalCount = document.getElementById('criticalCount');
 const allCount = document.getElementById('allCount');
+const latestCheckinText = document.getElementById('latestCheckinText');
+const latestCheckinDate = document.getElementById('latestCheckinDate');
 
 const overallStatus = document.getElementById('overallStatus');
 const overallText = document.getElementById('overallText');
@@ -301,10 +303,23 @@ function splitWeightBmi(results){
   results.forEach(result => {
     const title = String(result.title || '').toLowerCase();
     const value = String(result.value || '');
+    const unit = String(result.unit || '');
 
-    if(title.includes('weight') && title.includes('bmi')){
+    if((title.includes('weight') && title.includes('bmi')) ||
+      (title.includes('height') && title.includes('weight') && /bmi/i.test(`${value} ${unit}`))){
+      const heightMatch = value.match(/([\d.]+)\s*cm/i);
       const weightMatch = value.match(/([\d.]+)\s*kg/i);
       const bmiMatch = value.match(/bmi[:\s]*([\d.]+)/i);
+
+      if(heightMatch){
+        separated.push({
+          title: 'Height',
+          value: heightMatch[1],
+          unit: 'cm',
+          status: result.status || 'Recorded',
+          note: 'Recorded standing height.'
+        });
+      }
 
       separated.push({
         title: 'Weight',
@@ -317,7 +332,7 @@ function splitWeightBmi(results){
       separated.push({
         title: 'BMI',
         value: bmiMatch ? bmiMatch[1] : 'Not available',
-        unit: '',
+        unit: 'kg/m²',
         status: result.status || 'Normal',
         note: 'Calculated body mass index.'
       });
@@ -408,7 +423,14 @@ async function renderCounts(){
     return;
   }
 
-  const latestResults = await getLatestResults();
+  const measurements = await getMeasurements();
+  const latestRecord = measurements[0] || null;
+  const rawResults = latestRecord && Array.isArray(latestRecord.results)
+    ? latestRecord.results
+    : [];
+  const latestResults = window.MediPointCareMate
+    ? window.MediPointCareMate.stripCareMateResults(splitWeightBmi(rawResults))
+    : splitWeightBmi(rawResults);
 
   let normal = 0;
   let warning = 0;
@@ -429,6 +451,28 @@ async function renderCounts(){
   setText(warningCount, warning);
   setText(criticalCount, critical);
   setText(allCount, latestResults.length);
+
+  if(latestCheckinText){
+    if(!latestRecord){
+      setText(latestCheckinText, 'No check-ins yet. Complete a kiosk assessment to see your latest readings here.');
+      setText(latestCheckinDate, 'No recent activity');
+    }else{
+      const countLabel = latestResults.length === 1 ? 'reading' : 'readings';
+      const date = new Date(latestRecord.date || latestRecord.assessedAt || '');
+      const dateLabel = Number.isNaN(date.getTime())
+        ? 'Date unavailable'
+        : date.toLocaleString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit'
+        });
+
+      setText(latestCheckinText, `${latestResults.length} ${countLabel} saved in your latest check-in.`);
+      setText(latestCheckinDate, dateLabel);
+    }
+  }
 }
 
 function setAssessmentState(status, text, variant){
@@ -739,7 +783,7 @@ function getHistoryStatusClass(status){
 function getHistoryRecordSummary(event){
   if(event.type === 'assessment'){
     const count = event.readings.length;
-    return `${count} ${count === 1 ? 'measurement' : 'measurements'} · ${event.source || 'MediPoint kiosk'}`;
+    return `${count} ${count === 1 ? 'measurement' : 'measurements'} recorded`;
   }
   if(event.type === 'clinic-request'){
     return event.request?.message || `${event.requestType} request status update`;
@@ -756,7 +800,6 @@ function getHistoryDetailMarkup(event){
   ];
 
   if(event.type === 'assessment'){
-    facts.push(['Source', event.source || 'MediPoint kiosk']);
     if(event.context) facts.push(['Program / department', event.context]);
     const readings = event.readings.length ? event.readings.map(reading => `
       <article class="portal-detail-reading">
@@ -1382,5 +1425,11 @@ if(clinicRequestForm){
   clinicRequestForm.addEventListener('submit', submitClinicRequest);
 }
 
-setupMobilePortalNav();
+document.querySelectorAll('[data-portal-logout]').forEach(button => {
+  button.addEventListener('click', () => {
+    MediPoint.clearCurrentUser();
+    window.location.href = '../login-pages/portal-auth.html';
+  });
+});
+
 void bootstrapPortal();

@@ -72,6 +72,14 @@ export function detectIsSimulated(results) {
   }
 
   const notes = results.map((result) => String(result.note || '').toLowerCase());
+  const hasDemoResult = results.some((result) =>
+    String(result.status || '').toLowerCase().includes('demo') ||
+    String(result.note || '').toLowerCase().includes('demo')
+  );
+  if (hasDemoResult) {
+    return true;
+  }
+
   const hasSensorReading = notes.some((note) =>
     note.includes('arduino') || note.includes('sensor') || note.includes('measured from')
   );

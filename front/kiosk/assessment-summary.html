@@ -1105,21 +1105,30 @@
                     normalizeResults(originalResults);
 
                 if (results.length) {
+                    const hasDemoResult = results.some(function (result) {
+                        return String(result.status || '').toLowerCase().includes('demo');
+                    });
                     const needsAttention =
                         results.some(resultNeedsAttention);
 
                     summaryStatus.textContent =
-                        needsAttention
-                            ? "Some measurements may need attention. Consider consulting clinic personnel when appropriate."
-                            : "All completed measurements are shown with their recorded status.";
+                        hasDemoResult
+                            ? "Demo data for testing only. This is not a clinical assessment."
+                            : needsAttention
+                                ? "Some measurements may need attention. Consider consulting clinic personnel when appropriate."
+                                : "All completed measurements are shown with their recorded status.";
 
                     resultsGrid.innerHTML =
                         results.map(
                             createResultTile
                         ).join("");
 
-                    renderAssessment(results, assessment.caremate);
-                    renderInterventions(results, assessment.caremate);
+                    renderAssessment(results, hasDemoResult ? null : assessment.caremate);
+                    renderInterventions(results, hasDemoResult ? null : assessment.caremate);
+                    if (hasDemoResult) {
+                        assessmentSummary.textContent =
+                            "Readings are summarized below. Demo values are for testing only and must not guide care.";
+                    }
 
                     MediPointKioskAudio.speak(
                         summaryStatus.textContent +

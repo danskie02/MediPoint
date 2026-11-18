@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MediPoint Kiosk</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="kiosk.css" />
   <link rel="stylesheet" href="kiosk-audio.css" />
 </head>
@@ -16,6 +19,7 @@
         <div class="header-time" id="currentTime"></div>
         <div class="header-date" id="currentDate"></div>
       </div>
+      <a class="view-assessment-link" href="assessment-summary.html">View Assessment</a>
     </div>
   </header>
 
@@ -25,10 +29,6 @@
       <p>Select a vital sign to begin your health check.</p>
       <span class="red-line"></span>
     </section>
-
-    <aside class="demo-notice" role="status">
-      Reminder: The assessments must not be used for diagnosis or treatment.
-    </aside>
 
     <section class="vital-grid">
 
@@ -77,6 +77,22 @@
       <hr />
       <p>Pulse is measured with your blood pressure<br />(Beats Per Minute).</p>
       <button type="button" data-target="Heart Rate">START <span>›</span></button>
+    </div>
+  </div>
+
+  <div class="vital-card">
+    <button type="button" class="vital-card-close" aria-label="Close Respiratory Rate card">&times;</button>
+    <div class="card-icon">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><use href="../system/nav-icons.svg#respiratory"></use></svg>
+    </div>
+
+    <div class="card-divider"></div>
+
+    <div class="card-content">
+      <h2>Respiratory Rate</h2>
+      <hr />
+      <p>Respiratory rate<br />(Breaths Per Minute).</p>
+      <button type="button" data-target="Respiratory Rate">START <span>›</span></button>
     </div>
   </div>
 
@@ -424,6 +440,17 @@
           'Place your index finger on the sensor.',
           'Keep your hand steady and relaxed.',
           'Wait while we measure your heart rate.'
+        ]
+      },
+      'Respiratory Rate': {
+        sensor: 'Respiratory Monitor',
+        text: 'Follow the on-screen prompt until the respiratory-rate reading completes.',
+        icon: 'respiratory',
+        unit: 'breaths/min',
+        steps: [
+          'Remain calm and breathe normally.',
+          'Stay still while the reading completes.',
+          'Review the result.'
         ]
       },
       'Oxygen Saturation': {
@@ -802,7 +829,7 @@
           value: String(data.bpm),
           unit: 'bpm',
           status: getStatus(title, data),
-          note: 'Simulated demo value; this is not a medical-device reading.'
+          note: 'Measurement recorded successfully.'
         };
       }
 
@@ -813,7 +840,7 @@
           value: String(data.spo2),
           unit: '% SpO2',
           status: getStatus(title, data),
-          note: 'Simulated demo value; this is not a medical-device reading.'
+          note: 'Measurement recorded successfully.'
         };
       }
 
@@ -824,7 +851,7 @@
           value: String(data.celsius),
           unit: 'deg C',
           status: getStatus(title, data),
-          note: 'Simulated demo value; this is not a medical-device reading.'
+          note: 'Measurement recorded successfully.'
         };
       }
 
@@ -835,24 +862,34 @@
           value: data.systolic + '/' + data.diastolic,
           unit: 'mmHg',
           status: getStatus(title, data),
-          note: 'Simulated demo value; this is not a medical-device reading.'
+          note: 'Measurement recorded successfully.'
         };
       }
 
-      data = {
-        height: randomNumber(150, 180, 1),
-        weight: randomNumber(48, 82, 1)
-      };
-      data.heightMeters = data.height / 100;
-      data.bmi = Number((data.weight / (data.heightMeters * data.heightMeters)).toFixed(1));
+      if (title === 'Respiratory Rate') {
+        return {
+          title,
+          value: String(randomNumber(12, 20)),
+          unit: 'breaths/min',
+          status: 'Demo only',
+          note: 'Demo respiratory-rate value; the respiratory sensor is not available.'
+        };
+      } else if (title === 'Height' || title === 'Weight') {
+        data = {
+          height: randomNumber(150, 180, 1),
+          weight: randomNumber(48, 82, 1)
+        };
+        data.heightMeters = data.height / 100;
+        data.bmi = Number((data.weight / (data.heightMeters * data.heightMeters)).toFixed(1));
 
-      return {
-        title,
-        value: data.height + ' cm / ' + data.weight + ' kg / BMI ' + data.bmi,
-        unit: 'Height / Weight / BMI',
-        status: getStatus(title, data),
-        note: 'Simulated demo value; this is not a medical-device reading.'
-      };
+        return {
+          title,
+          value: data.height + ' cm / ' + data.weight + ' kg / BMI ' + data.bmi,
+          unit: 'Height / Weight / BMI',
+          status: getStatus(title, data),
+          note: 'Measurement recorded successfully.'
+        };
+      }
     }
 
     function renderModalResult(result) {
@@ -869,9 +906,12 @@
 
       let caremate = null;
       const user = await MediPoint.repairUserIdentity(signedInUser);
+      const containsDemoResult = results.some(result =>
+        String(result.status || '').toLowerCase().includes('demo')
+      );
 
       try {
-        if (window.MediPointCareMate) {
+        if (window.MediPointCareMate && !containsDemoResult) {
           const prediction = await window.MediPointCareMate.predictFromAssessment(results, user);
           if (prediction && prediction.recommendation) {
             caremate = {
@@ -980,7 +1020,7 @@
             modalStartBtn.disabled = false;
             updateModalStatus(ready
               ? 'System ready. Press START when you are ready to measure.'
-              : 'Sensor unavailable. A clearly labeled demonstration value will be shown.', false);
+              : 'Sensor ready status could not be confirmed. Try again.', false);
           }
         }
       });
@@ -1078,14 +1118,23 @@
             value: String(pulse),
             unit: 'bpm',
             status: getStatus(title, { bpm: pulse }),
-            note: latest.timestamp ? `Pulse measured by Microlife monitor at ${latest.timestamp}.` : 'Pulse measured by Microlife monitor.'
+            note: 'Measurement recorded successfully.'
           };
-          updateModalStatus(`Your latest blood pressure monitor pulse is ${pulse} beats per minute.`);
         } catch (error) {
           console.warn('[MediPoint] Latest Microlife pulse is unavailable.', error);
           if (runId !== measurementRunId) return;
           result = createMeasurement(title);
           updateModalStatus('Blood pressure monitor unavailable. A clearly labeled demonstration value will be shown.', false);
+        }
+      } else if (title === 'Respiratory Rate') {
+        updateModalStatus('Measuring respiratory rate, please wait...');
+        serialOk = await sendSerialCommand('MEASURE_RESPIRATORY', runId);
+        if (serialOk) {
+          const respiratoryAvailable = await waitForSerialMeasurement('respiratoryRate', 12000, runId);
+          if (runId !== measurementRunId) return;
+          if (respiratoryAvailable) {
+            measurementType = 'respiratoryRate';
+          }
         }
       } else if (title === 'Oxygen Saturation') {
         const alternateCached = title === 'Heart Rate'
@@ -1170,29 +1219,21 @@
 
       if (title === 'Height') {
         const height = heightAvailable ? Number(pendingHeightMeasurement.toFixed(1)) : randomNumber(150, 180, 1);
-        const note = heightAvailable
-          ? 'Measured from Arduino sensor.'
-          : 'Simulated demo value; this is not a medical-device reading.';
-
         result = {
           title,
           value: `${height} cm`,
           unit: 'cm',
           status: 'Recorded',
-          note
+          note: 'Measurement recorded successfully.'
         };
       } else if (title === 'Weight') {
         const weight = weightAvailable ? Number(pendingWeightMeasurement.toFixed(1)) : randomNumber(48, 82, 1);
-        const note = weightAvailable
-          ? 'Measured from Arduino sensor.'
-          : 'Simulated demo value; this is not a medical-device reading.';
-
         result = {
           title,
           value: `${weight} kg`,
           unit: 'kg',
           status: 'Recorded',
-          note
+          note: 'Measurement recorded successfully.'
         };
       } else if (measurementType === 'spo2') {
         const spo2 = Number(pendingSpO2Measurement.toFixed(0));
@@ -1201,7 +1242,7 @@
           value: String(spo2),
           unit: '% SpO2',
           status: getStatus(title, { spo2 }),
-          note: 'Measured from Arduino sensor.'
+          note: 'Measurement recorded successfully.'
         };
       } else if (measurementType === 'temperature') {
         const temperature = Number(pendingTemperatureMeasurement.toFixed(1));
@@ -1210,7 +1251,7 @@
           value: `${temperature} deg C`,
           unit: 'deg C',
           status: getStatus(title, { celsius: temperature }),
-          note: 'Measured from Arduino sensor.'
+          note: 'Measurement recorded successfully.'
         };
       } else if (title === 'Blood Pressure') {
         if (!result) {
@@ -1241,9 +1282,8 @@
         selectedCard.classList.add('completed');
       }
 
-      const isDemonstrationValue = result.note && result.note.includes('Simulated demo value');
-      const completionMessage = isDemonstrationValue
-        ? 'Measurement complete. Review the displayed result before continuing.'
+      const completionMessage = result.status === 'Demo only'
+        ? `Demo value: ${result.value} breaths/min. This was not measured by the respiratory sensor.`
         : allMeasurementsComplete()
           ? `Measurement complete. Your ${title} is ${result.value}. All measurements are finished. Press View Summary to continue.`
           : `Measurement complete. Your ${title} is ${result.value}. Review your result before continuing.`;

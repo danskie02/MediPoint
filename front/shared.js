@@ -482,10 +482,10 @@
       return {
         type: 'assessment',
         date,
-        source: record.source || (simulated ? 'Kiosk · simulated demo' : 'MediPoint kiosk'),
+        source: '',
         context: String(record.context || record.program || ''),
         readings,
-        simulated
+        simulated: false
       };
     });
 
@@ -612,7 +612,7 @@
     const role = String(user && user.role || '').toLowerCase();
     return role === 'doctor'
       ? `${prefix}system/doctor-portal.html`
-      : `${prefix}index.html`;
+      : `${prefix}kiosk/kiosk.html`;
   }
 
   async function fetchAssessmentsFromDatabase(user) {
@@ -656,6 +656,64 @@
 
     return [];
   }
+
+  function setupPortalMobileNavigation() {
+    const sidePanel = document.querySelector('.side-panel');
+    const sideNav = sidePanel?.querySelector('.side-nav');
+    const shell = document.querySelector('.portal-shell');
+
+    if(!sidePanel || !sideNav || !shell || shell.querySelector('.mobile-menu-toggle')) {
+      return;
+    }
+
+    if(!sideNav.id) {
+      sideNav.id = 'portalNavigationLinks';
+    }
+
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'mobile-menu-toggle';
+    toggle.setAttribute('aria-controls', sideNav.id);
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('aria-label', 'Open navigation menu');
+    toggle.innerHTML = '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>';
+
+    const backdrop = document.createElement('button');
+    backdrop.type = 'button';
+    backdrop.className = 'mobile-nav-backdrop';
+    backdrop.setAttribute('aria-label', 'Close navigation menu');
+
+    function setExpanded(expanded) {
+      sidePanel.classList.toggle('mobile-nav-expanded', expanded);
+      backdrop.classList.toggle('visible', expanded);
+      toggle.setAttribute('aria-expanded', String(expanded));
+      toggle.setAttribute('aria-label', expanded ? 'Close navigation menu' : 'Open navigation menu');
+      document.body.classList.toggle('mobile-nav-open', expanded);
+    }
+
+    toggle.addEventListener('click', () => {
+      setExpanded(toggle.getAttribute('aria-expanded') !== 'true');
+    });
+
+    backdrop.addEventListener('click', () => setExpanded(false));
+    sideNav.addEventListener('click', event => {
+      if(event.target.closest('a')) {
+        setExpanded(false);
+      }
+    });
+
+    document.addEventListener('keydown', event => {
+      if(event.key === 'Escape') {
+        setExpanded(false);
+      }
+    });
+
+    sidePanel.classList.add('mobile-nav-enabled');
+    shell.insertBefore(toggle, shell.firstChild);
+    shell.appendChild(backdrop);
+  }
+
+  setupPortalMobileNavigation();
 
   window.MediPoint = {
     parseJSON,

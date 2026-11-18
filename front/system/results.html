@@ -31,7 +31,7 @@
         <a href="results.html" class="active"><svg class="nav-icon" aria-hidden="true"><use href="nav-icons.svg#results"></use></svg> Latest Results</a>
         <a href="assessment.html"><svg class="nav-icon" aria-hidden="true"><use href="nav-icons.svg#assessment"></use></svg> Analytics</a>
         <a href="history.html"><svg class="nav-icon" aria-hidden="true"><use href="nav-icons.svg#history"></use></svg> History</a>
-        <a href="requests.html"><svg class="nav-icon" aria-hidden="true"><use href="nav-icons.svg#assessment"></use></svg> Requests</a>
+        <a href="requests.html"><svg class="nav-icon" aria-hidden="true"><use href="nav-icons.svg#requests"></use></svg> Requests</a>
       </nav>
 
       <div class="side-footer">
@@ -49,30 +49,23 @@
 
         <div class="header-actions">
           <span id="todayStamp">Today</span>
-          <a href="../index.html" class="home-btn">Home</a>
+          <button type="button" class="home-btn" data-portal-logout>Logout</button>
         </div>
       </header>
 
       <main class="dashboard">
         <section class="status-row">
           <article class="status-card all active" data-filter="All">
-            <span>All Results</span>
-            <strong id="allCount">0</strong>
+            <span>All Results</span><strong id="allCount">0</strong>
           </article>
-
           <article class="status-card normal" data-filter="Normal">
-            <span>Normal</span>
-            <strong id="normalCount">0</strong>
+            <span>Normal</span><strong id="normalCount">0</strong>
           </article>
-
           <article class="status-card warning" data-filter="Warning">
-            <span>Warning</span>
-            <strong id="warningCount">0</strong>
+            <span>Warning</span><strong id="warningCount">0</strong>
           </article>
-
           <article class="status-card critical" data-filter="Critical">
-            <span>Critical</span>
-            <strong id="criticalCount">0</strong>
+            <span>Critical</span><strong id="criticalCount">0</strong>
           </article>
         </section>
 
@@ -83,34 +76,24 @@
                 <h2>Latest Results</h2>
                 <p>Your most recent kiosk measurements.</p>
               </div>
-
               <input type="text" id="searchInput" placeholder="Search result..." />
             </div>
-
             <div class="results-grid" id="resultsGrid"></div>
           </section>
 
           <aside class="assessment-panel" id="assessment">
             <div class="section-heading compact">
-              <div>
-                <h2>Assessment</h2>
-                <p>Current risk summary.</p>
-              </div>
+              <div><h2>Assessment</h2><p>Current risk summary.</p></div>
             </div>
-
             <div class="portal-status-card" id="overallCard">
               <p class="status-label">Overall Status</p>
               <strong id="overallStatus">No Data</strong>
               <span class="status-desc" id="overallText">Complete kiosk measurements first.</span>
             </div>
-
             <div class="recommendations">
               <h3>Recommendations</h3>
-              <ul id="recommendationList">
-                <li>Complete your kiosk assessment to view recommendations.</li>
-              </ul>
+              <ul id="recommendationList"><li>Complete your kiosk assessment to view recommendations.</li></ul>
             </div>
-
             <button id="exportBtn" class="primary-btn">Export CSV</button>
           </aside>
         </section>

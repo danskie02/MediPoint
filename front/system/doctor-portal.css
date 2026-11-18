@@ -13,7 +13,10 @@
 }
 
  body.doctor-portal-page .side-panel {
-       background:linear-gradient(180deg, #111827 0%, #1f2937 100%);
+                   background:
+                         radial-gradient(ellipse at 12% 0%,rgba(184,15,29,.18),transparent 36%),
+                         linear-gradient(160deg,#252a30 0%,#1d2228 54%,#15191e 100%);
+                   border-right-color:rgba(255,255,255,.09);
 }
 
  body.doctor-portal-page .portal-header {
@@ -112,6 +115,74 @@
        background:var(--panel);
        padding:22px;
        box-shadow:0 16px 36px rgba(15,23,42,.06);
+}
+.request-notifications {
+      display:grid;
+      grid-template-columns:46px minmax(0,1fr) auto;
+      align-items:center;
+      gap:14px;
+      border-left:4px solid var(--brand);
+}
+.request-notification-icon {
+      width:42px;
+      height:42px;
+      display:grid;
+      place-items:center;
+      border:1px solid rgba(184,15,29,.16);
+      border-radius:10px;
+      background:var(--brand-soft);
+      color:var(--brand);
+}
+.request-notification-icon svg {
+      width:21px;
+      height:21px;
+      fill:none;
+      stroke:currentColor;
+      stroke-width:1.8;
+      stroke-linecap:round;
+      stroke-linejoin:round;
+}
+.request-notification-content {
+      min-width:0;
+}
+.request-notification-content > p {
+      color:var(--brand);
+      font-size:10px;
+      font-weight:900;
+      letter-spacing:.1em;
+}
+.request-notification-content h2 {
+      margin-top:3px;
+      font-size:17px;
+}
+.request-notification-content span {
+      display:block;
+      margin-top:3px;
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.5;
+}
+.request-notifications > a {
+      min-height:40px;
+      padding:0 13px;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      border:1px solid rgba(184,15,29,.18);
+      border-radius:8px;
+      background:#fff;
+      color:var(--brand);
+      font-size:12px;
+      font-weight:800;
+      text-decoration:none;
+      white-space:nowrap;
+}
+.request-notifications > a:hover {
+      background:var(--brand-soft);
+}
+.request-notifications > a span:last-child {
+      font-size:19px;
+      line-height:1;
 }
 
  .section-heading {
@@ -222,7 +293,7 @@
        font-weight:800;
 }
 
- .queue-controls label,.follow-up-form label {
+ .queue-controls label {
        display:grid;
        gap:6px;
        color:#374151;
@@ -230,7 +301,7 @@
        font-weight:800;
 }
 
- .queue-controls select,.follow-up-form input,.follow-up-form select,.follow-up-form textarea {
+ .queue-controls select {
        min-width:170px;
        border:1px solid var(--line);
        border-radius:8px;
@@ -241,47 +312,10 @@
        font-size:13px;
 }
 
- .follow-up-form {
-       display:grid;
-       gap:12px;
-       border-top:1px solid var(--line);
-       padding-top:16px;
-}
-
- .follow-up-form h3 {
-       margin:0;
-       font-size:16px;
-}
-
- .follow-up-form input,.follow-up-form select,.follow-up-form textarea {
-       width:100%;
-       min-width:0;
-       box-sizing:border-box;
-}
-
- .follow-up-form textarea {
-       resize:vertical;
-}
-
- .follow-up-form small,.local-save-notice {
+ .local-save-notice {
        color:var(--muted);
        font-size:11px;
        line-height:1.5;
-}
-
- .workflow-new {
-       background:#eff6ff;
-       color:#1d4ed8;
-}
-
- .workflow-reviewed {
-       background:#f3f4f6;
-       color:#374151;
-}
-
- .workflow-follow-up-needed {
-       background:var(--warning-soft);
-       color:#8a5300;
 }
 
  .filter-btn {
@@ -450,10 +484,6 @@
        border:2px solid var(--brand);
        border-radius:50%;
        background:#fff;
-}
-
- .follow-up-event .case-timeline-marker {
-       border-color:var(--warning);
 }
 
  .case-timeline-content {

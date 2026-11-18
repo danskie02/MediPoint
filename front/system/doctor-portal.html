@@ -27,6 +27,7 @@
         <a href="doctor-users.html"><svg class="nav-icon" aria-hidden="true"><use href="nav-icons.svg#users"></use></svg> List of Users</a>
         <a href="doctor-analytics.html"><svg class="nav-icon" aria-hidden="true"><use href="nav-icons.svg#analytics"></use></svg> Analytics</a>
         <a href="doctor-histogram.html"><svg class="nav-icon" aria-hidden="true"><use href="nav-icons.svg#histogram"></use></svg> User Histogram</a>
+        <a href="doctor-requests.html"><svg class="nav-icon" aria-hidden="true"><use href="nav-icons.svg#requests"></use></svg> Requests</a>
       </nav>
 
       <div class="side-footer">
@@ -53,8 +54,8 @@
         <section class="hero">
           <div>
             <p>Daily overview</p>
-            <h2>Review patient results and flag urgent follow-up</h2>
-            <span>Monitor kiosk submissions, inspect abnormal findings, and keep clinical records organized for each user.</span>
+            <h2>Review patient results and incoming requests</h2>
+            <span>Monitor kiosk submissions and inspect abnormal findings. Request updates are handled in the Requests section.</span>
           </div>
 
           <div class="hero-summary">
@@ -83,17 +84,17 @@
           </article>
         </section>
 
-        <section class="panel clinic-request-queue" aria-labelledby="clinicRequestQueueHeading">
-          <div class="section-heading">
-            <div>
-              <h2 id="clinicRequestQueueHeading">Clinic Requests</h2>
-              <p>Review messages, scheduling preferences, and clinic follow-up status.</p>
-            </div>
-            <small class="local-save-notice">Request updates are saved in this browser.</small>
+        <section class="panel request-notifications" aria-labelledby="requestNotificationCount">
+          <span class="request-notification-icon" aria-hidden="true"><svg><use href="nav-icons.svg#requests"></use></svg></span>
+          <div class="request-notification-content">
+            <p>REQUEST NOTIFICATIONS</p>
+            <h2 id="requestNotificationCount">No open requests</h2>
+            <span id="requestNotificationText">There are no clinic requests awaiting review.</span>
           </div>
-          <div id="doctorClinicRequestList" class="doctor-clinic-request-list" aria-live="polite">
-            <p class="empty">No clinic requests have been submitted.</p>
-          </div>
+          <a href="doctor-requests.html">
+            <span>Open Requests</span>
+            <span aria-hidden="true">›</span>
+          </a>
         </section>
 
         <section class="content-grid">
@@ -101,7 +102,7 @@
             <div class="section-heading">
               <div>
                 <h2>Patient Overview</h2>
-                <p>Review cases and keep follow-up work moving.</p>
+                <p>Review patient status and the latest recorded measurements.</p>
               </div>
               <label class="visually-hidden" for="patientSearch">Search patients by name or ID</label>
               <input id="patientSearch" type="search" placeholder="Search by name or ID" />
@@ -115,19 +116,10 @@
             </div>
 
             <div class="queue-controls">
-              <label for="followUpFilter">Work status
-                <select id="followUpFilter">
-                  <option value="All">All work</option>
-                  <option value="New">New</option>
-                  <option value="Reviewed">Reviewed</option>
-                  <option value="Follow-up needed">Follow-up needed</option>
-                </select>
-              </label>
               <label for="patientSort">Sort by
                 <select id="patientSort">
                   <option value="urgency">Urgency</option>
                   <option value="last-visit">Last visit</option>
-                  <option value="follow-up-date">Follow-up date</option>
                 </select>
               </label>
             </div>
@@ -141,7 +133,6 @@
                 <h2>Selected Case</h2>
                 <p>Clinical summary for the chosen patient.</p>
               </div>
-              <small class="local-save-notice">Follow-up updates are saved in this browser only.</small>
             </div>
 
             <div id="patientDetail" class="detail-card">

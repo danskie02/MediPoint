@@ -13,12 +13,12 @@ const patientList = document.getElementById('patientList');
 const patientDetail = document.getElementById('patientDetail');
 const filterButtons = document.querySelectorAll('.filter-btn');
 const staffLogoutBtn = document.getElementById('staffLogoutBtn');
-const followUpFilter = document.getElementById('followUpFilter');
 const patientSort = document.getElementById('patientSort');
 const doctorClinicRequestList = document.getElementById('doctorClinicRequestList');
+const requestNotificationCount = document.getElementById('requestNotificationCount');
+const requestNotificationText = document.getElementById('requestNotificationText');
 
 let activeFilter = 'All';
-let activeFollowUpFilter = 'All';
 let activeSort = 'urgency';
 let searchValue = '';
 let selectedPatientId = '';
@@ -82,10 +82,23 @@ function splitWeightBmi(results) {
   results.forEach(result => {
     const title = String(result.title || '').toLowerCase();
     const value = String(result.value || '');
+    const unit = String(result.unit || '');
 
-    if(title.includes('weight') && title.includes('bmi')){
+    if((title.includes('weight') && title.includes('bmi')) ||
+      (title.includes('height') && title.includes('weight') && /bmi/i.test(`${value} ${unit}`))){
+      const heightMatch = value.match(/([\d.]+)\s*cm/i);
       const weightMatch = value.match(/([\d.]+)\s*kg/i);
       const bmiMatch = value.match(/bmi[:\s]*([\d.]+)/i);
+
+      if(heightMatch){
+        separated.push({
+          title: 'Height',
+          value: heightMatch[1],
+          unit: 'cm',
+          status: result.status || 'Recorded',
+          note: 'Recorded standing height.'
+        });
+      }
 
       separated.push({
         title: 'Weight',
@@ -98,7 +111,7 @@ function splitWeightBmi(results) {
       separated.push({
         title: 'BMI',
         value: bmiMatch ? bmiMatch[1] : 'Not available',
-        unit: '',
+        unit: 'kg/m²',
         status: result.status || 'Normal',
         note: 'Calculated body mass index.'
       });
@@ -204,6 +217,8 @@ function getOverallStatus(results) {
 }
 
 async function buildPatientList() {
+  if(!patientList) return;
+
   const profiles = await fetchDoctorProfiles();
 
   const patients = await Promise.all(profiles.map(async profile => {
@@ -221,12 +236,6 @@ async function buildPatientList() {
     const lastCheckin = lastRecord && lastRecord.date
       ? new Date(lastRecord.date).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
       : 'No submissions';
-    const followUp = MediPoint.getDoctorFollowUp(patientId) || {
-      status: 'New',
-      assignedTo: currentStaff.name || '',
-      dueDate: '',
-      note: ''
-    };
 
     return {
       ...profile,
@@ -235,7 +244,6 @@ async function buildPatientList() {
       caremate,
       status,
       lastCheckin,
-      followUp,
       lastVisitDate: lastRecord && lastRecord.date ? new Date(lastRecord.date).getTime() : 0,
       patientId
     };
@@ -244,18 +252,12 @@ async function buildPatientList() {
   const filteredPatients = patients.filter(patient => {
     const matchesSearch = `${patient.name || ''} ${MediPoint.getPublicIdNumber(patient) || ''}`.toLowerCase().includes(searchValue);
     const matchesFilter = activeFilter === 'All' || patient.status === activeFilter;
-    const matchesFollowUp = activeFollowUpFilter === 'All' || patient.followUp.status === activeFollowUpFilter;
-    return matchesSearch && matchesFilter && matchesFollowUp;
+    return matchesSearch && matchesFilter;
   });
 
   const urgency = { Critical: 0, Warning: 1, Normal: 2, 'No data': 3 };
   filteredPatients.sort((first, second) => {
     if (activeSort === 'last-visit') return second.lastVisitDate - first.lastVisitDate;
-    if (activeSort === 'follow-up-date') {
-      const firstDate = first.followUp.dueDate ? new Date(`${first.followUp.dueDate}T00:00:00`).getTime() : Number.POSITIVE_INFINITY;
-      const secondDate = second.followUp.dueDate ? new Date(`${second.followUp.dueDate}T00:00:00`).getTime() : Number.POSITIVE_INFINITY;
-      return firstDate - secondDate || urgency[first.status] - urgency[second.status];
-    }
     return urgency[first.status] - urgency[second.status] || second.lastVisitDate - first.lastVisitDate;
   });
 
@@ -293,7 +295,6 @@ async function buildPatientList() {
       <div class="patient-badges">
         <span class="patient-badge">${MediPoint.escapeHTML(patient.role || 'Student')}</span>
         <span class="patient-badge">${MediPoint.escapeHTML(patient.lastCheckin)}</span>
-        <span class="patient-badge workflow-${patient.followUp.status.toLowerCase().replaceAll(' ', '-')}" data-workflow-status="${MediPoint.escapeHTML(patient.followUp.status)}">${MediPoint.escapeHTML(patient.followUp.status)}</span>
       </div>
       <div class="patient-meta">
         <span>${MediPoint.escapeHTML(patient.latestResults.length ? patient.latestResults[0].title : 'No results yet')}</span>
@@ -326,27 +327,13 @@ function renderPatientDetail(patient) {
   const recommendation = patient.caremate && patient.caremate.recommendation && window.MediPointCareMate
     ? window.MediPointCareMate.getRecommendationCopy(patient.caremate.recommendation).summary
     : patient.status === 'Critical'
-      ? 'Escalate to clinician review and prepare for immediate follow-up.'
+      ? 'Escalate this case for prompt clinical review.'
       : patient.status === 'Warning'
-        ? 'Continue monitoring and schedule a follow-up check-in.'
-        : 'No urgent follow-up required. Routine review is sufficient.';
-  const followUp = patient.followUp;
-  const timeline = MediPoint.buildHealthTimeline(patient.measurements, followUp, true);
+        ? 'Review persistent abnormal values and repeat measurements as appropriate.'
+        : 'No urgent action is indicated. Continue routine monitoring.';
+  const timeline = MediPoint.buildHealthTimeline(patient.measurements, null, true);
   const timelineMarkup = timeline.length ? timeline.map(event => {
     const date = formatTimelineDate(event.date);
-    if(event.type === 'follow-up'){
-      return `
-        <article class="case-timeline-event follow-up-event">
-          <div class="case-timeline-marker" aria-hidden="true"></div>
-          <div class="case-timeline-content">
-            <div class="case-timeline-heading"><strong>Follow-up activity</strong><time>${MediPoint.escapeHTML(date)}</time></div>
-            <p><span class="patient-badge workflow-${event.status.toLowerCase().replaceAll(' ', '-')}">${MediPoint.escapeHTML(event.status)}</span> ${event.assignedTo ? `Assigned to ${MediPoint.escapeHTML(event.assignedTo)}` : ''} ${event.dueDate ? `· Due ${MediPoint.escapeHTML(formatTimelineDate(event.dueDate).split(',')[0])}` : ''}</p>
-            ${event.note ? `<p class="case-timeline-context">${MediPoint.escapeHTML(event.note)}</p>` : ''}
-          </div>
-        </article>
-      `;
-    }
-
     const readings = event.readings.length ? event.readings.map(reading => {
       const previousText = reading.previous
         ? `Previous: ${reading.previous.value} ${reading.previous.unit} (${formatTimelineDate(reading.previous.date)})`
@@ -367,12 +354,12 @@ function renderPatientDetail(patient) {
         <div class="case-timeline-marker" aria-hidden="true"></div>
         <div class="case-timeline-content">
           <div class="case-timeline-heading"><strong>Health assessment</strong><time>${MediPoint.escapeHTML(date)}</time></div>
-          <p class="case-timeline-context">Source: ${MediPoint.escapeHTML(event.source)}${event.context ? ` · ${MediPoint.escapeHTML(event.context)}` : ''}</p>
+          <p class="case-timeline-context">${event.context ? MediPoint.escapeHTML(event.context) : 'Health assessment'}</p>
           <div class="case-timeline-readings">${readings}</div>
         </div>
       </article>
     `;
-  }).join('') : '<p class="empty">No assessment or follow-up activity is available.</p>';
+  }).join('') : '<p class="empty">No assessment history is available.</p>';
 
   patientDetail.innerHTML = `
     <div class="detail-header">
@@ -385,25 +372,6 @@ function renderPatientDetail(patient) {
       <h3>Health timeline</h3>
       ${timelineMarkup}
     </section>
-    <form class="follow-up-form" data-patient-id="${MediPoint.escapeHTML(patient.patientId)}">
-      <h3>Follow-up work</h3>
-      <label>Work status
-        <select name="status">
-          ${['New', 'Reviewed', 'Follow-up needed'].map(status => `<option value="${status}" ${followUp.status === status ? 'selected' : ''}>${status}</option>`).join('')}
-        </select>
-      </label>
-      <label>Assigned staff member
-        <input name="assignedTo" type="text" maxlength="100" value="${MediPoint.escapeHTML(followUp.assignedTo)}" placeholder="Staff member name" required>
-      </label>
-      <label>Follow-up due date
-        <input name="dueDate" type="date" value="${MediPoint.escapeHTML(followUp.dueDate)}">
-      </label>
-      <label>Brief note
-        <textarea name="note" maxlength="500" rows="3" placeholder="Next step or context">${MediPoint.escapeHTML(followUp.note)}</textarea>
-      </label>
-      <button class="primary-btn" type="submit">Save follow-up</button>
-      ${followUp.updatedAt ? `<small>Updated ${MediPoint.escapeHTML(new Date(followUp.updatedAt).toLocaleString())} by ${MediPoint.escapeHTML(followUp.updatedBy || 'staff')}</small>` : ''}
-    </form>
   `;
 }
 
@@ -442,7 +410,30 @@ function setStaffIdentity() {
   setText(staffInitials, getInitials(displayName));
   setText(todayStamp, new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }));
   setText(heroStatus, 'Ready for review');
-  setText(heroText, 'Use the list below to inspect patient submissions and flag urgent requests.');
+  setText(heroText, 'Review patient records and request notifications in their respective sections.');
+}
+
+function renderRequestNotifications(){
+  if(!requestNotificationCount || !requestNotificationText) return;
+
+  const requests = MediPoint.getClinicRequests()
+    .sort((first, second) => new Date(second.requestedAt || 0) - new Date(first.requestedAt || 0));
+  const openRequests = requests.filter(request => request.status !== 'Resolved');
+  const count = openRequests.length;
+
+  setText(requestNotificationCount, count
+    ? `${count} open ${count === 1 ? 'request' : 'requests'}`
+    : 'No open requests');
+
+  if(!count){
+    setText(requestNotificationText, requests.length
+      ? 'All clinic requests have been resolved.'
+      : 'There are no clinic requests awaiting review.');
+    return;
+  }
+
+  const latest = openRequests[0];
+  setText(requestNotificationText, `Latest: ${latest.type || 'Clinic'} request received ${formatTimelineDate(latest.requestedAt)}.`);
 }
 
 function renderClinicRequestQueue(){
@@ -545,39 +536,10 @@ function attachEvents() {
     });
   }
 
-  if(followUpFilter){
-    followUpFilter.addEventListener('change', event => {
-      activeFollowUpFilter = event.target.value || 'All';
-      buildPatientList();
-    });
-  }
-
   if(patientSort){
     patientSort.addEventListener('change', event => {
       activeSort = event.target.value || 'urgency';
       buildPatientList();
-    });
-  }
-
-  if(patientDetail){
-    patientDetail.addEventListener('submit', event => {
-      const form = event.target.closest('.follow-up-form');
-      if(!form) return;
-      event.preventDefault();
-      const data = new FormData(form);
-      try {
-        MediPoint.saveDoctorFollowUp(form.dataset.patientId, {
-          status: data.get('status'),
-          assignedTo: data.get('assignedTo'),
-          dueDate: data.get('dueDate'),
-          note: data.get('note'),
-          updatedBy: currentStaff.name || 'Clinical Staff'
-        });
-        buildPatientList();
-      } catch(error) {
-        console.error('Unable to save follow-up details.', error);
-        window.alert('Follow-up details could not be saved in this browser.');
-      }
     });
   }
 
@@ -632,5 +594,6 @@ function attachEvents() {
 
 setStaffIdentity();
 attachEvents();
+renderRequestNotifications();
 renderClinicRequestQueue();
-void buildPatientList();
+if(patientList) void buildPatientList();
