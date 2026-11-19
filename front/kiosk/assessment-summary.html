@@ -282,12 +282,17 @@
         >
             <div class="clinic-icon" aria-hidden="true">AI</div>
 
-            <div>
+            <div class="caremate-body">
                 <h2 id="caremateTitle">CareMate AI Recommendation</h2>
 
                 <p id="caremateSummary">
                     The CareMate model is analyzing your recorded vitals.
                 </p>
+
+                <div class="caremate-findings" id="caremateFindings" hidden>
+                    <h3>What your measurements indicate</h3>
+                    <ul id="caremateFindingsList"></ul>
+                </div>
             </div>
         </section>
 
@@ -409,6 +414,12 @@
 
             const caremateSummary =
                 document.getElementById("caremateSummary");
+
+            const caremateFindings =
+                document.getElementById("caremateFindings");
+
+            const caremateFindingsList =
+                document.getElementById("caremateFindingsList");
 
             const backHomeBtn =
                 document.getElementById("backHomeBtn");
@@ -781,6 +792,21 @@
                         };
                     }
 
+                    if (
+                        title.includes("respiratory") ||
+                        title.includes("respiration") ||
+                        title.includes("breathing rate")
+                    ) {
+                        return {
+                            text:
+                                status === "Normal"
+                                    ? "The recorded respiratory rate is within the configured reference range."
+                                    : "The recorded respiratory rate falls outside the configured reference range and may require verification.",
+                            attention:
+                                resultNeedsAttention(result)
+                        };
+                    }
+
                     if (title.includes("temperature")) {
                         return {
                             text:
@@ -877,6 +903,16 @@
                     }
 
                     if (
+                        title.includes("respiratory") ||
+                        title.includes("respiration") ||
+                        title.includes("breathing rate")
+                    ) {
+                        suggestions.add(
+                            "Breathe calmly at a comfortable pace, avoid strenuous activity until rechecked, and seek help for persistent shortness of breath."
+                        );
+                    }
+
+                    if (
                         title.includes("temperature") &&
                         status !== "Normal"
                     ) {
@@ -909,17 +945,45 @@
 
                 if (!payload || !payload.recommendation) {
                     caremateRecommendation.classList.add("hidden");
+                    if (caremateFindings) {
+                        caremateFindings.hidden = true;
+                    }
                     return false;
                 }
 
                 const copy = window.MediPointCareMate.getRecommendationCopy(
                     payload.recommendation
                 );
+                const findings = window.MediPointCareMate.findingsFromCareMate(payload);
 
                 caremateTitle.textContent =
                     "CareMate: " + copy.label;
 
-                caremateSummary.textContent = copy.summary;
+                caremateSummary.textContent =
+                    window.MediPointCareMate.analysisSummary(payload);
+
+                if (caremateFindings && caremateFindingsList) {
+                    if (findings.length) {
+                        caremateFindingsList.innerHTML = findings.map(function (finding) {
+                            const itemClass = finding.attention
+                                ? "caremate-finding attention"
+                                : "caremate-finding";
+                            return `
+                                <li class="${itemClass}">
+                                    <div class="caremate-finding-top">
+                                        <strong>${escapeHTML(finding.metric)}</strong>
+                                        <span>${escapeHTML(finding.categoryLabel)}</span>
+                                    </div>
+                                    <p>${escapeHTML(finding.text)}</p>
+                                </li>
+                            `;
+                        }).join("");
+                        caremateFindings.hidden = false;
+                    } else {
+                        caremateFindingsList.innerHTML = "";
+                        caremateFindings.hidden = true;
+                    }
+                }
 
                 caremateRecommendation.classList.remove("hidden");
                 caremateRecommendation.classList.remove(
@@ -939,8 +1003,27 @@
              * Display assessment information.
              */
             function renderAssessment(results, caremate) {
-                const items =
+                const fallbackItems =
                     createAssessmentItems(results);
+
+                const carematePayload = window.MediPointCareMate
+                    ? window.MediPointCareMate.extractCareMateFromAssessment({
+                        caremate: caremate
+                    })
+                    : null;
+
+                const caremateFindingsItems = carematePayload && window.MediPointCareMate
+                    ? window.MediPointCareMate.findingsFromCareMate(carematePayload)
+                    : [];
+
+                const items = caremateFindingsItems.length
+                    ? caremateFindingsItems.map(function (finding) {
+                        return {
+                            text: finding.text,
+                            attention: finding.attention
+                        };
+                    })
+                    : fallbackItems;
 
                 const attentionCount =
                     items.filter(function (item) {
@@ -948,18 +1031,17 @@
                     }).length;
 
                 const hasCareMate = renderCareMate(caremate);
-                const caremateCopy = hasCareMate && window.MediPointCareMate
+                const caremateCopy = hasCareMate && carematePayload && window.MediPointCareMate
                     ? window.MediPointCareMate.getRecommendationCopy(
-                        window.MediPointCareMate.extractCareMateFromAssessment({
-                            caremate: caremate
-                        }).recommendation
+                        carematePayload.recommendation
                     )
                     : null;
 
                 if (hasCareMate && caremateCopy) {
                     assessmentSummary.textContent =
                         "CareMate analyzed your vitals and recommends: " +
-                        caremateCopy.label + ".";
+                        caremateCopy.label + ". " +
+                        window.MediPointCareMate.summarizeFindings(caremateFindingsItems);
 
                     if (
                         caremateCopy.severity === "critical" ||
@@ -1015,7 +1097,7 @@
                     : null;
 
                 const suggestions = payload && payload.recommendation && window.MediPointCareMate
-                    ? window.MediPointCareMate.recommendationBullets(payload.recommendation)
+                    ? window.MediPointCareMate.recommendationBullets(payload.recommendation, payload)
                     : createInterventions(results);
 
                 interventionList.innerHTML =

@@ -12,7 +12,7 @@
 <body>
 
 <nav class="app-nav">
-    <button type="button" data-target="idLoginPage" class="active" onclick="showPage('idLoginPage')">ID Login</button>
+    <button type="button" data-target="idLoginPage" class="active" onclick="showPage('idLoginPage')">Log in</button>
     <button type="button" data-target="qrLoginPage" onclick="showPage('qrLoginPage')">QR Login</button>
 </nav>
 
@@ -27,21 +27,77 @@
         </div>
 
         <h1>Doctor Portal</h1>
-        <p class="subtitle">Use your registered doctor account to access the clinical portal</p>
+        <p class="subtitle" id="loginSubtitle">Enter your full name and password to open the clinical portal</p>
 
-        <div class="form-group">
-            <label for="fullName2">Full Name</label>
-            <input type="text" id="fullName2" autocomplete="off">
+        <div id="loginFields">
+            <div class="form-group">
+                <label for="fullName2">Full Name</label>
+                <input type="text" id="fullName2" autocomplete="name">
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" autocomplete="current-password">
+            </div>
+
+            <p class="note">Only doctor and clinical staff accounts can access the clinical portal. A new account uses its ID number as a temporary password until you replace it.</p>
+
+            <button class="continue-btn" type="button" onclick="continueLogin()">Continue</button>
+            <button class="text-link" type="button" onclick="showForgotPassword()">Forgot password?</button>
         </div>
 
-        <div class="form-group">
-            <label for="idNumber">Doctor ID / Personnel ID</label>
-            <input type="password" id="idNumber" autocomplete="off">
+        <div id="changePasswordFields" class="hidden">
+            <p class="note">Your ID number was a temporary password. Choose a new password before continuing.</p>
+            <div class="form-group">
+                <label for="newPassword">New password</label>
+                <input type="password" id="newPassword" autocomplete="new-password">
+            </div>
+            <div class="form-group">
+                <label for="confirmPassword">Confirm new password</label>
+                <input type="password" id="confirmPassword" autocomplete="new-password">
+            </div>
+            <p class="note">Use at least 8 characters, and do not reuse your ID number.</p>
+            <button class="continue-btn" type="button" onclick="submitPasswordChange()">Save password and continue</button>
         </div>
 
-        <p class="note">Only doctor and clinical staff accounts can access the clinical portal.</p>
+        <div id="forgotPasswordFields" class="hidden">
+            <div id="forgotIdentityStep">
+                <div class="form-group">
+                    <label for="forgotName">Full Name</label>
+                    <input type="text" id="forgotName" autocomplete="name">
+                </div>
+                <div class="form-group">
+                    <label for="forgotId">Doctor ID / Personnel ID</label>
+                    <input type="text" id="forgotId" autocomplete="username">
+                </div>
+                <div class="form-group">
+                    <label for="forgotEmail">Email address</label>
+                    <input type="email" id="forgotEmail" autocomplete="email">
+                </div>
+                <p class="note">We will email a verification code before you can set a new password.</p>
+                <button class="continue-btn" type="button" onclick="requestForgotPasswordOtp()">Send verification code</button>
+            </div>
 
-        <button class="continue-btn" type="button" onclick="continueLogin()">Continue</button>
+            <div id="forgotOtpStep" class="hidden">
+                <div class="form-group">
+                    <label for="forgotOtp">Email verification code</label>
+                    <input type="text" id="forgotOtp" inputmode="numeric" autocomplete="one-time-code" maxlength="6">
+                </div>
+                <div class="form-group">
+                    <label for="forgotNewPassword">New password</label>
+                    <input type="password" id="forgotNewPassword" autocomplete="new-password">
+                </div>
+                <div class="form-group">
+                    <label for="forgotConfirmPassword">Confirm new password</label>
+                    <input type="password" id="forgotConfirmPassword" autocomplete="new-password">
+                </div>
+                <p class="note">Use at least 8 characters, and do not reuse your ID number.</p>
+                <button class="continue-btn" type="button" onclick="confirmForgotPasswordOtp()">Verify code and save password</button>
+                <button class="text-link" type="button" onclick="requestForgotPasswordOtp()">Resend code</button>
+            </div>
+
+            <button class="text-link" type="button" onclick="showLoginFields()">Back to log in</button>
+        </div>
 
         <p class="signup-text">Need kiosk access?</p>
         <a class="signup-link" href="login-landing.html">Go to Kiosk Login</a>

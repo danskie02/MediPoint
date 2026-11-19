@@ -7,6 +7,7 @@
 import { corsHeaders, jsonResponse } from '../_shared/cors.js';
 import { createAdminClient } from '../_shared/supabase-admin.js';
 import { mapProfileRowToUser, normalizeRole, normalizeText } from '../_shared/profile-mapper.js';
+import { hashPassword } from '../_shared/password.js';
 
 const KIOSK_ROLES = new Set(['student', 'personnel']);
 
@@ -58,6 +59,8 @@ async function createProfile(
     program: role === 'student' ? programDepartment : null,
     department_office: role === 'personnel' ? programDepartment : null,
     profile_complete: false,
+    password_hash: await hashPassword(userId),
+    must_change_password: true,
     member_since: new Date().toISOString(),
   };
 

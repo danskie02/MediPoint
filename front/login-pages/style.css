@@ -280,8 +280,10 @@
 
  /* ==========================================================================
    ID Login page (#idLoginPage)
-   ========================================================================== */#idLoginPage.page-view {
-         overflow:hidden;
+   ========================================================================== */ #idLoginPage.page-view {
+         overflow:auto;
+         align-items:safe center;
+         padding:40px 16px;
 }
 
  #idLoginPage .logo {
@@ -410,6 +412,63 @@
 }
 
  #idLoginPage .signup-link:hover {
+         text-decoration:underline;
+}
+
+ #idLoginPage #changePasswordFields,
+ #idLoginPage #forgotPasswordFields {
+         text-align:left;
+}
+
+ #idLoginPage #changePasswordFields .form-group,
+ #idLoginPage #forgotPasswordFields .form-group {
+         margin-bottom:26px;
+}
+
+ #idLoginPage #changePasswordFields label,
+ #idLoginPage #forgotPasswordFields label {
+         font-size:18px;
+         font-weight:600;
+         line-height:1.35;
+         margin-bottom:12px;
+}
+
+ #idLoginPage #changePasswordFields input,
+ #idLoginPage #forgotPasswordFields input {
+         height:56px;
+         font-size:18px;
+         box-shadow:0 6px 14px rgba(0,0,0,0.12);
+}
+
+ #idLoginPage #changePasswordFields .note,
+ #idLoginPage #forgotPasswordFields .note {
+         margin-top:0;
+         margin-bottom:22px;
+         font-size:15px;
+         line-height:1.5;
+}
+
+ #idLoginPage #changePasswordFields .form-group + .note,
+ #idLoginPage #forgotPasswordFields .form-group + .note {
+         margin-top:8px;
+         margin-bottom:26px;
+}
+
+ #idLoginPage #changePasswordFields .continue-btn,
+ #idLoginPage #forgotPasswordFields .continue-btn {
+         margin-top:4px;
+}
+
+ #idLoginPage .text-link {
+         display:inline-block;
+         margin-top:18px;
+         padding:0;
+         border:0;
+         background:none;
+         color:#5573ff;
+         font-size:16px;
+         font-weight:700;
+         cursor:pointer;
          text-decoration:underline;
 }
 

@@ -57,9 +57,11 @@
   }
 
   async function loginWithId(fullName, options) {
+    const password = options && (options.password || options.idNumber) ? (options.password || options.idNumber) : '';
     const payload = {
       fullName,
-      idNumber: options && options.idNumber ? options.idNumber : '',
+      password,
+      idNumber: password,
       requestedRole: options && options.requestedRole ? options.requestedRole : '',
       kioskId: options && options.kioskId ? options.kioskId : '',
     };

@@ -60,6 +60,8 @@ const allCount = document.getElementById('allCount');
 const overallStatus = document.getElementById('overallStatus');
 const overallText = document.getElementById('overallText');
 const recommendationList = document.getElementById('recommendationList');
+const measurementFindings = document.getElementById('measurementFindings');
+const measurementFindingsList = document.getElementById('measurementFindingsList');
 const trendMetric = document.getElementById('trendMetric');
 const trendChart = document.getElementById('trendChart');
 const trendEmpty = document.getElementById('trendEmpty');
@@ -438,6 +440,36 @@ function setAssessmentState(status, text, variant){
   setText(heroText, text);
 }
 
+function renderMeasurementFindings(caremate){
+  if(!measurementFindings || !measurementFindingsList){
+    return;
+  }
+
+  if(!caremate || !window.MediPointCareMate){
+    measurementFindings.hidden = true;
+    setHTML(measurementFindingsList, '');
+    return;
+  }
+
+  const findings = window.MediPointCareMate.findingsFromCareMate(caremate);
+  if(!findings.length){
+    measurementFindings.hidden = true;
+    setHTML(measurementFindingsList, '');
+    return;
+  }
+
+  setHTML(measurementFindingsList, findings.map(finding => `
+    <li class="measurement-finding ${finding.attention ? 'attention' : 'normal'}">
+      <div class="measurement-finding-top">
+        <strong>${MediPoint.escapeHTML(finding.metric)}</strong>
+        <span>${MediPoint.escapeHTML(finding.categoryLabel)}</span>
+      </div>
+      <p>${MediPoint.escapeHTML(finding.text)}</p>
+    </li>
+  `).join(''));
+  measurementFindings.hidden = false;
+}
+
 async function renderAssessment(){
   if(trendMetric){
     await renderAnalytics();
@@ -453,23 +485,27 @@ async function renderAssessment(){
 
   if(!latestResults.length){
     setAssessmentState('No Data', 'Complete kiosk measurements first.', '');
+    renderMeasurementFindings(null);
     setHTML(recommendationList, `<li>Complete your kiosk assessment to view recommendations.</li>`);
     return;
   }
 
   if(caremate && caremate.recommendation && window.MediPointCareMate){
     const copy = window.MediPointCareMate.getRecommendationCopy(caremate.recommendation);
-    const bullets = window.MediPointCareMate.recommendationBullets(caremate.recommendation);
+    const bullets = window.MediPointCareMate.recommendationBullets(caremate.recommendation, caremate);
     const variant = copy.severity === 'critical'
       ? 'critical'
       : copy.severity === 'warning'
         ? 'warning'
         : 'normal';
 
-    setAssessmentState(copy.label, copy.summary, variant);
+    setAssessmentState(copy.label, window.MediPointCareMate.analysisSummary(caremate), variant);
+    renderMeasurementFindings(caremate);
     setHTML(recommendationList, bullets.map(item => `<li>${item}</li>`).join(''));
     return;
   }
+
+  renderMeasurementFindings(null);
 
   const hasCritical = latestResults.some(result => normalizeStatus(result.status) === 'Critical');
   const hasWarning = latestResults.some(result => normalizeStatus(result.status) === 'Warning');
@@ -635,7 +671,150 @@ function renderTrendHistory(readings){
   `).join('');
 }
 
+const DAILY_TREND_DAYS = 14;
+
+function ageFromBirthday(profile){
+  const raw = profile && (profile.birthday || profile.dob || profile.birthDate);
+  if(!raw) return null;
+  const born = new Date(/^\d{4}-\d{2}-\d{2}$/.test(String(raw)) ? `${raw}T00:00:00` : raw);
+  if(Number.isNaN(born.getTime())) return null;
+  const now = new Date();
+  let age = now.getFullYear() - born.getFullYear();
+  if(now < new Date(now.getFullYear(), born.getMonth(), born.getDate())) age -= 1;
+  return age >= 0 && age < 130 ? age : null;
+}
+
+function dayKeyFromDate(value){
+  const date = value instanceof Date ? value : new Date(value);
+  if(Number.isNaN(date.getTime())) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function buildLastNDayKeys(days){
+  const keys = [];
+  const cursor = new Date();
+  cursor.setHours(12, 0, 0, 0);
+  for(let offset = days - 1; offset >= 0; offset -= 1){
+    const day = new Date(cursor);
+    day.setDate(cursor.getDate() - offset);
+    keys.push(dayKeyFromDate(day));
+  }
+  return keys;
+}
+
+function formatDayLabel(dayKey){
+  const date = new Date(`${dayKey}T12:00:00`);
+  if(Number.isNaN(date.getTime())) return dayKey;
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function renderDailyBarChart(container, items, options = {}){
+  if(!container) return;
+  const { emptyText = 'No data for this period.', barClass = '', showZero = true } = options;
+  const max = Math.max(0, ...items.map(item => Number(item.value) || 0));
+  if(!items.length || (!showZero && max <= 0)){
+    container.innerHTML = `<p class="daily-bar-empty">${MediPoint.escapeHTML(emptyText)}</p>`;
+    return;
+  }
+
+  container.innerHTML = items.map(item => {
+    const value = Number(item.value) || 0;
+    const height = max > 0 ? Math.max(value > 0 ? 8 : 2, (value / max) * 120) : 2;
+    const display = item.display != null ? item.display : String(value);
+    return `<div class="daily-bar-column" title="${MediPoint.escapeHTML(item.title || `${item.label}: ${display}`)}">
+      <span class="daily-bar-value">${value > 0 || showZero ? MediPoint.escapeHTML(String(display)) : ''}</span>
+      <div class="daily-bar ${barClass}" style="height:${height}px"></div>
+      <span class="daily-bar-label">${MediPoint.escapeHTML(item.label)}</span>
+    </div>`;
+  }).join('');
+}
+
+function renderPersonalAnalyticsSnapshot(){
+  const ageNode = document.getElementById('snapshotAge');
+  if(!ageNode) return;
+
+  const age = ageFromBirthday(user);
+  const city = user.city || user.municipality || user.presentCity || '';
+  const province = user.province || user.presentProvince || '';
+  const location = [city, province].filter(Boolean).join(', ') || 'Not provided';
+
+  setText(ageNode, age != null ? String(age) : '--');
+  setText(document.getElementById('snapshotAgeNote'), age != null ? 'From date of birth' : 'Add birthday in profile');
+  setText(document.getElementById('snapshotGender'), user.gender || 'Not provided');
+  setText(document.getElementById('snapshotProgram'), user.program || user.departmentOffice || user.department || user.section || 'Not provided');
+  setText(document.getElementById('snapshotLocation'), location);
+}
+
+function renderDailyTrends(records, readings){
+  const volumeChart = document.getElementById('dailyVolumeChart');
+  const metricChart = document.getElementById('dailyMetricChart');
+  if(!volumeChart && !metricChart) return;
+
+  const dayKeys = buildLastNDayKeys(DAILY_TREND_DAYS);
+  const volumeByDay = Object.fromEntries(dayKeys.map(key => [key, 0]));
+  records.forEach(record => {
+    const key = dayKeyFromDate(record.date);
+    if(Object.prototype.hasOwnProperty.call(volumeByDay, key)) volumeByDay[key] += 1;
+  });
+
+  const volumeItems = dayKeys.map(key => ({
+    label: formatDayLabel(key),
+    value: volumeByDay[key],
+    title: `${formatDayLabel(key)}: ${volumeByDay[key]} check-in${volumeByDay[key] === 1 ? '' : 's'}`
+  }));
+  const checkins = volumeItems.reduce((total, item) => total + item.value, 0);
+  const activeDays = volumeItems.filter(item => item.value > 0).length;
+  setText(document.getElementById('dailyCheckinCount'), checkins);
+  setText(document.getElementById('dailyActiveDays'), activeDays);
+  renderDailyBarChart(volumeChart, volumeItems, { emptyText: 'No check-ins in the last 14 days.' });
+
+  const selected = trendMetric && trendMetric.options[trendMetric.selectedIndex];
+  const unit = selected && selected.dataset.unit ? selected.dataset.unit : '';
+  const metricTitle = selected && selected.value ? selected.textContent : 'selected reading';
+  setText(document.getElementById('dailyMetricChartTitle'), selected && selected.value
+    ? `Daily average · ${selected.textContent}`
+    : 'Daily average reading');
+
+  const sums = Object.fromEntries(dayKeys.map(key => [key, { total: 0, count: 0 }]));
+  readings.forEach(({ record, entry }) => {
+    const key = dayKeyFromDate(record.date);
+    if(!Object.prototype.hasOwnProperty.call(sums, key)) return;
+    sums[key].total += entry.value;
+    sums[key].count += 1;
+  });
+
+  const metricItems = dayKeys.map(key => {
+    const bucket = sums[key];
+    const average = bucket.count ? bucket.total / bucket.count : 0;
+    return {
+      label: formatDayLabel(key),
+      value: average,
+      display: bucket.count ? formatTrendNumber(average) : '0',
+      title: bucket.count
+        ? `${formatDayLabel(key)}: ${formatTrendNumber(average)}${unit ? ` ${unit}` : ''} (${bucket.count} reading${bucket.count === 1 ? '' : 's'})`
+        : `${formatDayLabel(key)}: no readings`
+    };
+  });
+
+  const metricValues = metricItems.filter(item => item.value > 0).map(item => item.value);
+  if(metricValues.length){
+    const average = metricValues.reduce((total, value) => total + value, 0) / metricValues.length;
+    setText(document.getElementById('dailyMetricAverage'), `${formatTrendNumber(average)}${unit ? ` ${unit}` : ''}`);
+  }else{
+    setText(document.getElementById('dailyMetricAverage'), '--');
+  }
+
+  renderDailyBarChart(metricChart, metricItems, {
+    barClass: 'metric',
+    emptyText: `No ${metricTitle} readings in the last 14 days.`
+  });
+}
+
 async function renderAnalytics(){
+  renderPersonalAnalyticsSnapshot();
   const records = await getMeasurements();
   const metrics = new Map();
   records.forEach(record => getTrendEntries(record).forEach(entry => {
@@ -656,6 +835,7 @@ async function renderAnalytics(){
     trendLegend.innerHTML = '';
     trendHistory.innerHTML = '<tr><td colspan="3">No readings recorded yet.</td></tr>';
     renderTrendSummary([]);
+    renderDailyTrends(records, []);
     return;
   }
 
@@ -665,6 +845,7 @@ async function renderAnalytics(){
   renderTrendSummary(readings);
   renderTrendChart(readings);
   renderTrendHistory(readings);
+  renderDailyTrends(records, readings);
 }
 
 async function renderHistory(){
@@ -927,8 +1108,7 @@ function getAssessmentSummaryFor(record){
   if (window.MediPointCareMate) {
     const caremate = window.MediPointCareMate.extractCareMateFromAssessment(record);
     if (caremate && caremate.recommendation) {
-      const copy = window.MediPointCareMate.getRecommendationCopy(caremate.recommendation);
-      return copy.summary;
+      return window.MediPointCareMate.analysisSummary(caremate);
     }
   }
 

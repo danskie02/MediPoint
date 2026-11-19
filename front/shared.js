@@ -135,7 +135,9 @@
 
   function setCurrentUser(user) {
     if(!user) return;
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(user));
+    const sessionUser = { ...user };
+    delete sessionUser.passwordHash;
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(sessionUser));
     localStorage.removeItem('currentUser');
   }
 
@@ -229,6 +231,39 @@
     return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
   }
 
+  function newPasswordError(password, idNumber) {
+    const value = String(password || '');
+    if (value.length < 8) return 'Use at least 8 characters for your new password.';
+    if (value.trim() === normalizeId(idNumber)) {
+      return 'Choose a password that is different from your ID number.';
+    }
+    return '';
+  }
+
+  function accountNeedsPasswordChange(user) {
+    return !user || user.mustChangePassword === true || !user.passwordHash;
+  }
+
+  async function passwordMatchesAccount(user, password) {
+    const secret = String(password || '');
+    if (!user || !secret) return false;
+    if (user.passwordHash) {
+      return (await hashPassword(secret)) === user.passwordHash;
+    }
+    return secret === getPublicIdNumber(user);
+  }
+
+  function preservePasswordFields(user, idNumber) {
+    const existing = getPortalProfile(idNumber) || getUser(idNumber);
+    if (!existing) return user;
+    const next = { ...user };
+    if (!next.passwordHash && existing.passwordHash) next.passwordHash = existing.passwordHash;
+    if (typeof next.mustChangePassword !== 'boolean' && typeof existing.mustChangePassword === 'boolean') {
+      next.mustChangePassword = existing.mustChangePassword;
+    }
+    return next;
+  }
+
   async function savePortalAccount(profile) {
     if(profile && profile.role === 'doctor') {
       throw new Error('Doctor accounts must be provisioned by MediPoint administration.');
@@ -242,13 +277,14 @@
       createdAt: new Date().toISOString()
     };
     localStorage.setItem(portalAccountKey(email), JSON.stringify(account));
-    localStorage.setItem(portalProfileKey(account.userId), JSON.stringify({
+    const storedProfile = preservePasswordFields({
       ...profile,
       email,
       idNumber: account.userId,
       kioskQrPayload: getKioskQrPayload(profile) || undefined,
       accountType: 'portal'
-    }));
+    }, account.userId);
+    localStorage.setItem(portalProfileKey(account.userId), JSON.stringify(storedProfile));
     return account;
   }
 
@@ -262,41 +298,83 @@
       createdAt: '2026-01-01T00:00:00.000Z'
     };
     localStorage.setItem(portalAccountKey(email), JSON.stringify(account));
+    const existing = getPortalProfile(CLINICAL_ACCOUNT.idNumber);
     localStorage.setItem(portalProfileKey(account.userId), JSON.stringify({
       ...CLINICAL_ACCOUNT,
       departmentOffice: 'University Clinic',
       profileComplete: true,
       accountType: 'portal',
       managedAccount: true,
-      memberSince: account.createdAt
+      memberSince: account.createdAt,
+      passwordHash: existing && existing.passwordHash ? existing.passwordHash : undefined,
+      mustChangePassword: existing && typeof existing.mustChangePassword === 'boolean'
+        ? existing.mustChangePassword
+        : true
     }));
   }
 
-  function authenticatePortalIdentity(name, idNumber) {
+  function collectStoredUsers() {
+    const users = [];
+    const seen = new Set();
+    getPortalAccounts().forEach(account => {
+      const user = getPortalProfile(account.userId);
+      const idNumber = getPublicIdNumber(user);
+      if (!user || !idNumber || seen.has(idNumber)) return;
+      seen.add(idNumber);
+      users.push(user);
+    });
+    getUsers().forEach(user => {
+      const idNumber = getPublicIdNumber(user);
+      if (!idNumber || seen.has(idNumber)) return;
+      seen.add(idNumber);
+      users.push(user);
+    });
+    return users;
+  }
+
+  async function findAccountByPassword(name, password, role) {
+    const normalizedName = String(name || '').trim().toLowerCase();
+    const normalizedRole = String(role || '').trim().toLowerCase();
+    const matches = [];
+
+    for (const user of collectStoredUsers()) {
+      if (String(user.name || '').trim().toLowerCase() !== normalizedName) continue;
+      if (normalizedRole && String(user.role || '').toLowerCase() !== normalizedRole) continue;
+      if (String(user.role || '').toLowerCase() === 'doctor' && !user.managedAccount) continue;
+      if (await passwordMatchesAccount(user, password)) matches.push(user);
+    }
+
+    return matches.length === 1 ? matches[0] : null;
+  }
+
+  function findAccountByIdentity(name, idNumber, email) {
     const normalizedName = String(name || '').trim().toLowerCase();
     const normalizedId = normalizeId(idNumber);
-    const account = getPortalAccounts().find(item => item.userId === normalizedId);
+    const normalizedEmail = normalizeEmail(email);
+    return collectStoredUsers().find(user =>
+      getPublicIdNumber(user) === normalizedId &&
+      String(user.name || '').trim().toLowerCase() === normalizedName &&
+      normalizeEmail(user.email) === normalizedEmail
+    ) || null;
+  }
 
-    if (account) {
-      const user = getPortalProfile(account.userId);
-      if (user && String(user.name || '').trim().toLowerCase() === normalizedName) {
-        return user;
-      }
+  async function setAccountPassword(user, newPassword) {
+    const idNumber = getPublicIdNumber(user);
+    if (!idNumber) throw new Error('A user ID is required.');
+    const passwordHash = await hashPassword(newPassword);
+    const patch = { passwordHash, mustChangePassword: false };
+    const portal = getPortalProfile(idNumber);
+    if (portal) {
+      localStorage.setItem(portalProfileKey(idNumber), JSON.stringify({ ...portal, ...patch }));
     }
-
-    const kioskUser = getUser(normalizedId);
-    if (kioskUser && String(kioskUser.name || '').trim().toLowerCase() === normalizedName) {
-      const role = String(kioskUser.role || '').toLowerCase();
-      if (role === 'doctor' && !kioskUser.managedAccount) {
-        return null;
-      }
-      return {
-        ...kioskUser,
-        accountType: kioskUser.accountType || 'kiosk'
-      };
+    const kiosk = getUser(idNumber);
+    if (kiosk) {
+      localStorage.setItem(userKey(idNumber), JSON.stringify({ ...kiosk, ...patch }));
     }
-
-    return null;
+    if (!portal && !kiosk) {
+      saveUser({ ...user, idNumber, ...patch });
+    }
+    return { ...(portal || kiosk || user), ...patch, idNumber };
   }
 
   function saveUser(user, previousId) {
@@ -305,7 +383,7 @@
 
     const profileId = getProfileId(user);
     const storedUser = {
-      ...user,
+      ...preservePasswordFields(user, idNumber),
       idNumber,
       profileId: profileId || user.profileId || '',
       id: profileId || user.id || idNumber,
@@ -679,7 +757,12 @@
     getPortalAccounts,
     savePortalAccount,
     ensureClinicalAccount,
-    authenticatePortalIdentity,
+    hashPassword,
+    newPasswordError,
+    accountNeedsPasswordChange,
+    findAccountByPassword,
+    findAccountByIdentity,
+    setAccountPassword,
     saveUser,
     getMeasurements,
     getDoctorFollowUp,

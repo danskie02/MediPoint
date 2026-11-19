@@ -409,6 +409,62 @@
        line-height:1.5;
 }
 
+ .caremate-findings-panel {
+       margin-top:14px;
+       padding-top:12px;
+       border-top:1px solid var(--line);
+}
+
+ .caremate-findings-panel h4 {
+       margin:0 0 10px;
+       font-size:12px;
+       font-weight:800;
+       letter-spacing:0.05em;
+       text-transform:uppercase;
+       color:var(--muted);
+}
+
+ .caremate-findings-panel ul {
+       display:grid;
+       gap:8px;
+       margin:0;
+       padding:0;
+       list-style:none;
+}
+
+ .caremate-findings-panel li {
+       padding:10px 12px;
+       border:1px solid var(--line);
+       border-radius:10px;
+       background:#fff;
+}
+
+ .caremate-findings-panel li.attention {
+       border-color:#e9c477;
+       background:#fff8e8;
+}
+
+ .caremate-findings-panel li strong {
+       display:inline-block;
+       margin-right:8px;
+       font-size:13px;
+}
+
+ .caremate-findings-panel li span {
+       font-size:11px;
+       font-weight:800;
+       letter-spacing:0.03em;
+       text-transform:uppercase;
+       color:var(--muted);
+}
+
+ .caremate-findings-panel li p {
+       margin:4px 0 0;
+       color:var(--muted);
+       font-size:13px;
+       line-height:1.5;
+}
+
  .detail-list {
        display:grid;
        gap:10px;

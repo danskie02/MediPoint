@@ -63,6 +63,37 @@
             <button id="exportBtn" class="primary-btn" type="button" title="Download all recorded readings as CSV">Export CSV</button>
           </div>
 
+          <section class="personal-snapshot" aria-labelledby="snapshotTitle">
+            <div class="personal-snapshot-heading">
+              <div>
+                <h3 id="snapshotTitle">Personal snapshot</h3>
+                <p>Demographics from your profile used for context alongside your readings.</p>
+              </div>
+            </div>
+            <div class="personal-snapshot-grid" aria-label="Personal demographics">
+              <article class="snapshot-card">
+                <span>Age</span>
+                <strong id="snapshotAge">--</strong>
+                <small id="snapshotAgeNote">From date of birth</small>
+              </article>
+              <article class="snapshot-card">
+                <span>Gender</span>
+                <strong id="snapshotGender">--</strong>
+                <small>Profile record</small>
+              </article>
+              <article class="snapshot-card">
+                <span>Program / department</span>
+                <strong id="snapshotProgram">--</strong>
+                <small>Registration details</small>
+              </article>
+              <article class="snapshot-card">
+                <span>Location</span>
+                <strong id="snapshotLocation">--</strong>
+                <small>City / province</small>
+              </article>
+            </div>
+          </section>
+
           <div class="analytics-stats" aria-label="Reading summary">
             <article class="analytics-stat">
               <span>Latest reading</span>
@@ -80,6 +111,39 @@
               <small>Assessments with this reading</small>
             </article>
           </div>
+
+          <section class="daily-trends-panel" aria-labelledby="dailyTrendsTitle">
+            <div class="daily-trends-heading">
+              <div>
+                <h3 id="dailyTrendsTitle">Daily trends · last 14 days</h3>
+                <p>Check-in volume by calendar day, plus the daily average for the selected reading.</p>
+              </div>
+              <div class="daily-trend-stats" aria-label="Fourteen day summary">
+                <article>
+                  <span>Check-ins (14d)</span>
+                  <strong id="dailyCheckinCount">0</strong>
+                </article>
+                <article>
+                  <span>Active days</span>
+                  <strong id="dailyActiveDays">0</strong>
+                </article>
+                <article>
+                  <span>Daily avg (selected)</span>
+                  <strong id="dailyMetricAverage">--</strong>
+                </article>
+              </div>
+            </div>
+            <div class="daily-trend-charts">
+              <div>
+                <h4>Check-ins per day</h4>
+                <div class="daily-bar-chart" id="dailyVolumeChart" aria-label="Check-ins per day for the last 14 days"></div>
+              </div>
+              <div>
+                <h4 id="dailyMetricChartTitle">Daily average reading</h4>
+                <div class="daily-bar-chart" id="dailyMetricChart" aria-label="Daily average for the selected reading"></div>
+              </div>
+            </div>
+          </section>
 
           <section class="trend-panel" aria-labelledby="trendTitle">
             <div class="trend-toolbar">

@@ -110,6 +110,14 @@ def categorize_spo2(spo2: float) -> str:
     return "Normal"
 
 
+def categorize_rr(resp_rate: float) -> str:
+    if resp_rate < 12:
+        return "BRADYPNEA (LOW)"
+    if resp_rate > 20:
+        return "TACHYPNEA (HIGH)"
+    return "NORMAL"
+
+
 def _find_result(results: list[dict[str, Any]], *titles: str) -> dict[str, Any] | None:
     normalized = {title.strip().lower() for title in titles}
     for result in results:
@@ -202,6 +210,17 @@ def extract_vitals_from_results(results: list[dict[str, Any]]) -> dict[str, floa
         if spo2 is not None:
             vitals["spo2"] = spo2
 
+    rr_result = _find_result(
+        results,
+        "Respiratory Rate",
+        "Respiration Rate",
+        "Breathing Rate",
+    )
+    if rr_result:
+        resp_rate = _parse_number(rr_result.get("value"))
+        if resp_rate is not None:
+            vitals["resp_rate"] = resp_rate
+
     return vitals
 
 
@@ -234,7 +253,7 @@ def build_patient_payload(
     systolic = vitals["SYS_BP"]
     diastolic = vitals["DIA_BP"]
 
-    return {
+    payload = {
         "AGE": compute_age(birthday, age),
         "height_cm": vitals["height_cm"],
         "weight_kg": vitals["weight_kg"],
@@ -251,6 +270,62 @@ def build_patient_payload(
         "temp_category": categorize_temp(vitals["temp_c"]),
         "ox_category": categorize_spo2(vitals["spo2"]),
     }
+
+    # Optional vital: included for interpretations/safeguards, not RF model features.
+    if "resp_rate" in vitals:
+        payload["resp_rate"] = vitals["resp_rate"]
+        payload["rr_category"] = categorize_rr(vitals["resp_rate"])
+
+    return payload
+
+
+NORMAL_CATEGORY_VALUES = {
+    "temp_category": frozenset({"NORMAL"}),
+    "bp_category": frozenset({"NORMAL"}),
+    "hr_category": frozenset({"NORMAL"}),
+    "ox_category": frozenset({"Normal"}),
+    "rr_category": frozenset({"NORMAL"}),
+    "bmi_category": frozenset({"NORMAL WEIGHT"}),
+}
+
+
+def count_abnormal_vitals(patient: dict[str, Any]) -> int:
+    """Count how many categorized vitals fall outside their normal band."""
+
+    abnormal = 0
+    for key, normal_values in NORMAL_CATEGORY_VALUES.items():
+        category = str(patient.get(key) or "")
+        if category and category not in normal_values:
+            abnormal += 1
+    return abnormal
+
+
+def recommendation_from_abnormal_count(abnormal_count: int) -> str:
+    """
+    Map abnormal vital count to CareMate triage recommendation.
+
+    - 0 abnormal → Maintain Healthy
+    - 1 or 2 abnormal → Lifestyle Changes and Monitoring
+    - 3 or more abnormal → Emergency Care Required
+    """
+
+    if abnormal_count <= 0:
+        return "MAINTAIN_HEALTHY"
+    if abnormal_count <= 2:
+        return "LIFESTYLE_AND_MONITOR"
+    return "EMERGENCY_CARE"
+
+
+def apply_vital_count_recommendation(
+    model_recommendation: str,
+    patient: dict[str, Any],
+) -> tuple[str, bool, int]:
+    """Override the RF label with the vital-count triage rule."""
+
+    abnormal_count = count_abnormal_vitals(patient)
+    rule_recommendation = recommendation_from_abnormal_count(abnormal_count)
+    overridden = rule_recommendation != str(model_recommendation)
+    return rule_recommendation, overridden, abnormal_count
 
 
 def predict_assessment(
@@ -285,14 +360,164 @@ def predict_assessment(
     probabilities = _rf_model.predict_proba(features)[0]
     classes = list(encoders["le_target"].classes_)
 
-    recommendation = encoders["le_target"].inverse_transform([prediction_encoded])[0]
+    model_recommendation = str(
+        encoders["le_target"].inverse_transform([prediction_encoded])[0]
+    )
     probability_map = {
         label: round(float(probability), 4)
         for label, probability in zip(classes, probabilities)
     }
+    recommendation, rule_applied, abnormal_count = apply_vital_count_recommendation(
+        model_recommendation,
+        patient,
+    )
 
     return {
-        "recommendation": str(recommendation),
+        "recommendation": recommendation,
         "probabilities": probability_map,
         "features": patient,
+        "interpretations": build_vital_interpretations(patient),
+        "modelRecommendation": model_recommendation,
+        "safeguardApplied": rule_applied,
+        "abnormalVitalCount": abnormal_count,
     }
+
+
+def build_vital_interpretations(patient: dict[str, Any]) -> list[dict[str, str]]:
+    """Translate categorized vitals into plain-language measurement indications."""
+
+    interpretations: list[dict[str, str]] = []
+
+    temp_c = patient.get("temp_c")
+    temp_category = str(patient.get("temp_category") or "")
+    if temp_c is not None and temp_category:
+        temp_meanings = {
+            "NORMAL": "a normal body temperature",
+            "LOW-GRADE FEVER": "a low-grade fever",
+            "FEVER": "fever",
+            "HIGH FEVER": "a high fever",
+            "HYPOTHERMIA": "hypothermia (below-normal body temperature)",
+        }
+        interpretations.append(
+            {
+                "metric": "Body Temperature",
+                "value": f"{temp_c} °C",
+                "category": temp_category,
+                "indication": temp_meanings.get(temp_category, temp_category.lower()),
+                "text": (
+                    f"Body Temperature of {temp_c} °C indicates "
+                    f"{temp_meanings.get(temp_category, temp_category.lower())}."
+                ),
+            }
+        )
+
+    systolic = patient.get("SYS_BP")
+    diastolic = patient.get("DIA_BP")
+    bp_category = str(patient.get("bp_category") or "")
+    if systolic is not None and diastolic is not None and bp_category:
+        bp_meanings = {
+            "NORMAL": "normal blood pressure",
+            "LOW BLOOD PRESSURE": "low blood pressure (hypotension)",
+            "HYPERTENSION STAGE 1": "stage 1 hypertension",
+            "HYPERTENSION STAGE 2": "stage 2 hypertension",
+            "HYPERTENSIVE CRISIS": "a hypertensive crisis reading",
+        }
+        interpretations.append(
+            {
+                "metric": "Blood Pressure",
+                "value": f"{systolic}/{diastolic} mmHg",
+                "category": bp_category,
+                "indication": bp_meanings.get(bp_category, bp_category.lower()),
+                "text": (
+                    f"Blood Pressure of {systolic}/{diastolic} mmHg indicates "
+                    f"{bp_meanings.get(bp_category, bp_category.lower())}."
+                ),
+            }
+        )
+
+    heart_rate = patient.get("heart_rate")
+    hr_category = str(patient.get("hr_category") or "")
+    if heart_rate is not None and hr_category:
+        hr_meanings = {
+            "NORMAL": "a normal resting heart rate",
+            "BRADYCARDIA (LOW)": "bradycardia (a low heart rate)",
+            "TACHYCARDIA (HIGH)": "tachycardia (an elevated heart rate)",
+        }
+        interpretations.append(
+            {
+                "metric": "Heart Rate",
+                "value": f"{heart_rate} bpm",
+                "category": hr_category,
+                "indication": hr_meanings.get(hr_category, hr_category.lower()),
+                "text": (
+                    f"Heart Rate of {heart_rate} bpm indicates "
+                    f"{hr_meanings.get(hr_category, hr_category.lower())}."
+                ),
+            }
+        )
+
+    spo2 = patient.get("spo2")
+    ox_category = str(patient.get("ox_category") or "")
+    if spo2 is not None and ox_category:
+        ox_meanings = {
+            "Normal": "normal oxygen saturation",
+            "Hypoxemia": "mildly reduced oxygen saturation (hypoxemia)",
+            "Severe Hypoxemia": "severely reduced oxygen saturation",
+        }
+        interpretations.append(
+            {
+                "metric": "Oxygen Saturation",
+                "value": f"{spo2}%",
+                "category": ox_category,
+                "indication": ox_meanings.get(ox_category, ox_category.lower()),
+                "text": (
+                    f"Oxygen Saturation of {spo2}% indicates "
+                    f"{ox_meanings.get(ox_category, ox_category.lower())}."
+                ),
+            }
+        )
+
+    resp_rate = patient.get("resp_rate")
+    rr_category = str(patient.get("rr_category") or "")
+    if resp_rate is not None and rr_category:
+        rr_meanings = {
+            "NORMAL": "a normal resting respiratory rate",
+            "BRADYPNEA (LOW)": "bradypnea (a low respiratory rate)",
+            "TACHYPNEA (HIGH)": "tachypnea (an elevated respiratory rate)",
+        }
+        interpretations.append(
+            {
+                "metric": "Respiratory Rate",
+                "value": f"{resp_rate} breaths/min",
+                "category": rr_category,
+                "indication": rr_meanings.get(rr_category, rr_category.lower()),
+                "text": (
+                    f"Respiratory Rate of {resp_rate} breaths/min indicates "
+                    f"{rr_meanings.get(rr_category, rr_category.lower())}."
+                ),
+            }
+        )
+
+    bmi = patient.get("BMI")
+    bmi_category = str(patient.get("bmi_category") or "")
+    if bmi is not None and bmi_category:
+        bmi_meanings = {
+            "UNDERWEIGHT": "an underweight BMI category",
+            "NORMAL WEIGHT": "a normal BMI category",
+            "OVERWEIGHT": "an overweight BMI category",
+            "OBESE": "an obese BMI category",
+        }
+        interpretations.append(
+            {
+                "metric": "BMI",
+                "value": str(bmi),
+                "category": bmi_category,
+                "indication": bmi_meanings.get(bmi_category, bmi_category.lower()),
+                "text": (
+                    f"BMI of {bmi} indicates "
+                    f"{bmi_meanings.get(bmi_category, bmi_category.lower())}."
+                ),
+            }
+        )
+
+    return interpretations

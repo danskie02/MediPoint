@@ -85,16 +85,70 @@
   font-size: 13px;
 }
 
-.assessment-panel .recommendations {
-  margin: 20px 0 22px;
+.assessment-panel .measurement-findings {
+  margin: 18px 0 0;
 }
 
+.assessment-panel .measurement-findings h3,
 .assessment-panel .recommendations h3 {
   font-size: 12px;
   font-weight: 900;
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--brand);
+}
+
+.assessment-panel .measurement-findings ul {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.assessment-panel .measurement-finding {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.assessment-panel .measurement-finding.attention {
+  border-color: #e9c477;
+  background: var(--warning-light, #fff8e8);
+}
+
+.assessment-panel .measurement-finding-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.assessment-panel .measurement-finding-top strong {
+  font-size: 13px;
+  color: var(--text-dark);
+}
+
+.assessment-panel .measurement-finding-top span {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-medium);
+}
+
+.assessment-panel .measurement-finding p {
+  margin: 0;
+  color: var(--text-medium);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.assessment-panel .recommendations {
+  margin: 20px 0 22px;
 }
 
 .assessment-panel .recommendations ul {

@@ -26,7 +26,7 @@ Audio guidance is on.
 
 ### `before_measurements`
 
-Welcome to the MediPoint health check. Please rest for five minutes before taking your measurements. Select a measurement on the screen, follow the instructions, and press Start when you are ready. Complete each measurement you want recorded. When all six measurements are complete, select View Summary to review your results. These results are for health monitoring and education only. They are not a diagnosis and must not replace advice from a qualified health professional.
+Welcome to the MediPoint health check. Please rest for five minutes before taking your measurements. Select a measurement on the screen, follow the instructions, and press Start when you are ready. Complete each measurement you want recorded. When all seven measurements are complete, select View Summary to review your results. These results are for health monitoring and education only. They are not a diagnosis and must not replace advice from a qualified health professional.
 
 ## Measurement instructions
 
@@ -45,6 +45,10 @@ Heart rate is measured as pulse by the blood pressure monitor. No separate heart
 ### `oxygen_saturation_instructions`
 
 Oxygen saturation measurement. Place your finger inside the pulse oximeter. Keep your hand relaxed and still while it takes the reading. Press Start when you are ready.
+
+### `respiratory_rate_instructions`
+
+Respiratory rate measurement. Place your finger on the pulse oximeter sensor. Breathe normally and keep your hand steady while the kiosk estimates your breathing rate. Press Start when you are ready.
 
 ### `body_temperature_instructions`
 
@@ -113,6 +117,7 @@ The current kiosk can speak changing text such as a measurement name, a measured
 ## Current-flow caveats for implementation
 
 - Height and weight are separate selections in the current kiosk; do not record a combined Height and Weight prompt for this screen.
-- The summary is reached after all six selectable actions are complete; the Heart Rate action displays the latest pulse from the blood pressure monitor.
+- The summary is reached after all seven selectable actions are complete; the Heart Rate action displays the latest pulse from the blood pressure monitor.
+- Oxygen Saturation and Respiratory Rate both use the MAX30105 finger sensor over Arduino serial. One reading can cache the paired vital for the other card.
 - Blood pressure waits for a Microlife monitor result and can remain pending for up to two minutes; do not tell users that a simulated blood pressure value is a valid reading.
 - Audio guidance can be turned off with the Audio On control. The current toggle announces only “Audio guidance is on” when switched on.

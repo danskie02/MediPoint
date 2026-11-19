@@ -71,7 +71,7 @@ The Random Forest triage model (`caremate_rf_model.joblib` + `caremate_encoders.
 
 3. Optional: copy `front/login-pages/medipoint-config.example.js` to `medipoint-config.js` and set `window.MEDIPOINT_CAREMATE_URL` if the API is not on `http://127.0.0.1:8000`.
 
-4. Complete a kiosk assessment. When all vitals are recorded, the kiosk calls CareMate, stores the recommendation locally, and sends it to Supabase when configured.
+4. Complete a kiosk assessment. When all vitals are recorded, the kiosk calls CareMate, stores the recommendation locally, and sends it to Supabase when configured. Respiratory Rate is optional for the Random Forest model but is stored, shown in summaries/portals, and included in CareMate interpretations and abnormal-vital safeguards when present.
 
 For Supabase Edge Functions, set the secret `CAREMATE_API_URL` (for example `http://host.docker.internal:8000` during local Supabase development) so `store-assessment` can enrich assessments server-side.
 

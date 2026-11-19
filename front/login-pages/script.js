@@ -98,7 +98,9 @@ document.addEventListener("DOMContentLoaded", function(){
         });
     });
 
-    setRole("student");
+    if(programDepartment && userIdInput){
+        setRole("student");
+    }
 
     window.generateQR = async function(){
         const fullName = document.getElementById("fullName").value.trim();
@@ -128,9 +130,10 @@ document.addEventListener("DOMContentLoaded", function(){
             return;
         }
 
-        const existingUser = MediPoint.getUser(userId);
-        if(existingUser){
-            alert("An account with this ID already exists. Please sign in instead.");
+        if(typeof window.MediPointKioskApi === "undefined" ||
+           !window.MEDIPOINT_SUPABASE_URL ||
+           !window.MEDIPOINT_SUPABASE_ANON_KEY) {
+            alert("Online account service is not configured.");
             return;
         }
 
@@ -150,31 +153,37 @@ document.addEventListener("DOMContentLoaded", function(){
         let qrPayload = `medipoint:v1:${userId}`;
         let createdUser = null;
 
-        if(typeof window.MediPointKioskApi !== "undefined" &&
-           window.MEDIPOINT_SUPABASE_URL &&
-           window.MEDIPOINT_SUPABASE_ANON_KEY) {
-            try {
-                const result = await window.MediPointKioskApi.signUpKioskProfile({
-                    ...userData,
-                    fullName,
-                    userId,
-                    programDepartment: programDepartmentValue,
-                }, {
-                    kioskId: window.MEDIPOINT_KIOSK_ID || ""
-                });
+        try {
+            const result = await window.MediPointKioskApi.signUpKioskProfile({
+                ...userData,
+                fullName,
+                userId,
+                programDepartment: programDepartmentValue,
+            }, {
+                kioskId: window.MEDIPOINT_KIOSK_ID || ""
+            });
 
-                if(result && result.user){
-                    createdUser = result.user;
-                    if(result.qrPayload){
-                        qrPayload = result.qrPayload;
-                    }
-                }
-            } catch (error) {
-                console.warn("Supabase kiosk sign-up failed; falling back to local sign-up.", error);
+            if(!(result && result.user)){
+                alert((result && result.error) || "Could not create the account online.");
+                return;
             }
+
+            createdUser = result.user;
+            if(result.qrPayload){
+                qrPayload = result.qrPayload;
+            }
+        } catch (error) {
+            alert(Number.isInteger(error && error.status)
+                ? (error.message || "Could not create the account online.")
+                : "Could not connect to the online account service. Check the internet connection and try again.");
+            return;
         }
 
-        const finalUser = createdUser || userData;
+        const finalUser = {
+            ...createdUser,
+            idNumber: createdUser.idNumber || userId,
+            mustChangePassword: true
+        };
         MediPoint.saveUser(finalUser);
 
         const qrBox = document.getElementById("qrBox");
@@ -212,68 +221,268 @@ document.addEventListener("DOMContentLoaded", function(){
    ID Login page logic
    ========================================================================== */
 
+let pendingPasswordChange = null;
+
+function showLoginFields(){
+    const loginFields = document.getElementById("loginFields");
+    const changeFields = document.getElementById("changePasswordFields");
+    const forgotFields = document.getElementById("forgotPasswordFields");
+    const subtitle = document.getElementById("loginSubtitle");
+    if(loginFields) loginFields.classList.remove("hidden");
+    if(changeFields) changeFields.classList.add("hidden");
+    if(forgotFields) forgotFields.classList.add("hidden");
+    if(subtitle){
+        subtitle.textContent = getRequestedRole() === "doctor"
+            ? "Enter your full name and password to open the clinical portal"
+            : "Enter your full name and password to continue";
+    }
+}
+
+function showForgotPassword(){
+    document.getElementById("loginFields").classList.add("hidden");
+    document.getElementById("changePasswordFields").classList.add("hidden");
+    document.getElementById("forgotPasswordFields").classList.remove("hidden");
+    const identityStep = document.getElementById("forgotIdentityStep");
+    const otpStep = document.getElementById("forgotOtpStep");
+    if(identityStep) identityStep.classList.remove("hidden");
+    if(otpStep) otpStep.classList.add("hidden");
+    const subtitle = document.getElementById("loginSubtitle");
+    if(subtitle) subtitle.textContent = "Confirm your account details to receive an email verification code";
+}
+
+function showPasswordChange(user, currentPassword){
+    pendingPasswordChange = { user, currentPassword, name: user.name };
+    document.getElementById("loginFields").classList.add("hidden");
+    document.getElementById("forgotPasswordFields").classList.add("hidden");
+    document.getElementById("changePasswordFields").classList.remove("hidden");
+    const subtitle = document.getElementById("loginSubtitle");
+    if(subtitle) subtitle.textContent = "Choose a password only you know";
+    const field = document.getElementById("newPassword");
+    if(field) field.focus();
+}
+
+function openSignedInAccount(user){
+    MediPoint.setCurrentUser({ ...user, mustChangePassword: false });
+    window.location.href = MediPoint.routeFor(user, '../');
+}
+
+function onlineAuthError(){
+    if(typeof window.MediPointKioskApi === "undefined" ||
+       !window.MEDIPOINT_SUPABASE_URL ||
+       !window.MEDIPOINT_SUPABASE_ANON_KEY) {
+        return "Online account service is not configured.";
+    }
+    return "";
+}
+
 async function continueLogin(){
     const fullNameInput = document.getElementById("fullName2").value.trim();
-    const idNumberInput = document.getElementById("idNumber").value.trim();
+    const passwordInput = document.getElementById("password").value;
 
-    if(fullNameInput === "" || idNumberInput === ""){
-        alert("Please enter your Full Name and ID Number.");
+    if(fullNameInput === "" || passwordInput === ""){
+        alert("Please enter your full name and password.");
+        return;
+    }
+
+    const configError = onlineAuthError();
+    if(configError){
+        alert(configError);
         return;
     }
 
     const requestedRole = getRequestedRole();
-    let remoteUnavailable = false;
 
-    if(typeof window.MediPointKioskApi !== "undefined" &&
-       window.MEDIPOINT_SUPABASE_URL &&
-       window.MEDIPOINT_SUPABASE_ANON_KEY) {
-        try {
-            const result = requestedRole === "doctor"
-                ? await window.MediPointKioskApi.portalAuth("login", {
-                    name: fullNameInput,
-                    idNumber: idNumberInput,
-                    role: "doctor"
-                }, {
-                    kioskId: window.MEDIPOINT_KIOSK_ID || ""
-                })
-                : await window.MediPointKioskApi.loginWithId(fullNameInput, {
-                    idNumber: idNumberInput,
-                    requestedRole,
-                    kioskId: window.MEDIPOINT_KIOSK_ID || ""
-                });
+    try {
+        const result = requestedRole === "doctor"
+            ? await window.MediPointKioskApi.portalAuth("login", {
+                name: fullNameInput,
+                password: passwordInput,
+                idNumber: passwordInput,
+                role: "doctor"
+            }, {
+                kioskId: window.MEDIPOINT_KIOSK_ID || ""
+            })
+            : await window.MediPointKioskApi.loginWithId(fullNameInput, {
+                password: passwordInput,
+                requestedRole,
+                kioskId: window.MEDIPOINT_KIOSK_ID || ""
+            });
 
-            const savedUser = result && result.user;
-            if(savedUser){
-                MediPoint.setCurrentUser(savedUser);
-                window.location.href = MediPoint.routeFor(savedUser, '../');
+        const savedUser = result && result.user;
+        if(savedUser){
+            if(result.mustChangePassword || savedUser.mustChangePassword){
+                showPasswordChange(savedUser, passwordInput);
                 return;
             }
-
-            if(result && result.error){
-                alert(result.error);
-                return;
-            }
-        } catch (error) {
-            remoteUnavailable = !Number.isInteger(error && error.status);
-            console.warn("Supabase login failed; falling back to local login.", error);
+            openSignedInAccount(savedUser);
+            return;
         }
+
+        alert((result && result.error) || "Incorrect full name or password.");
+    } catch (error) {
+        alert(Number.isInteger(error && error.status)
+            ? (error.message || "Incorrect full name or password.")
+            : "Could not connect to the online login service. Check the internet connection and try again.");
     }
+}
 
-    const matchedUser = MediPoint.getUsers().find(user =>
-        String(user.name || '').trim().toLowerCase() === fullNameInput.toLowerCase() &&
-        String(user.idNumber || '') === idNumberInput &&
-        (!requestedRole || user.role === requestedRole)
-    ) || null;
-
-    if(!matchedUser){
-        alert(remoteUnavailable
-            ? "Could not connect to the online login service. Check the internet connection and try again."
-            : "Incorrect Full Name or Student Number / Personnel ID.");
+async function submitPasswordChange(){
+    const pending = pendingPasswordChange;
+    if(!pending){
+        showLoginFields();
         return;
     }
 
-    MediPoint.setCurrentUser(matchedUser);
-    window.location.href = MediPoint.routeFor(matchedUser, '../');
+    const newPassword = document.getElementById("newPassword").value;
+    const confirmPassword = document.getElementById("confirmPassword").value;
+    if(newPassword !== confirmPassword){
+        alert("Passwords do not match.");
+        return;
+    }
+
+    const ruleError = MediPoint.newPasswordError(newPassword, MediPoint.getPublicIdNumber(pending.user));
+    if(ruleError){
+        alert(ruleError);
+        return;
+    }
+
+    const configError = onlineAuthError();
+    if(configError){
+        alert(configError);
+        return;
+    }
+
+    try{
+        const result = await window.MediPointKioskApi.portalAuth("change-password", {
+            name: pending.name,
+            currentPassword: pending.currentPassword,
+            newPassword
+        }, {
+            kioskId: window.MEDIPOINT_KIOSK_ID || ""
+        });
+        if(result && result.error){
+            alert(result.error);
+            return;
+        }
+        if(!(result && result.passwordUpdated && result.user)){
+            alert("Could not save the new password online.");
+            return;
+        }
+
+        pendingPasswordChange = null;
+        openSignedInAccount({ ...result.user, mustChangePassword: false });
+    }catch(error){
+        alert(Number.isInteger(error && error.status)
+            ? (error.message || "Could not change the password.")
+            : "Could not connect to the online account service. Check the internet connection and try again.");
+    }
+}
+
+let forgotOtpPending = null;
+
+async function requestForgotPasswordOtp(){
+    const name = document.getElementById("forgotName").value.trim();
+    const idNumber = document.getElementById("forgotId").value.trim();
+    const email = MediPoint.normalizeEmail(document.getElementById("forgotEmail").value);
+
+    if(!name || !idNumber || !email){
+        alert("Enter your full name, ID number, and email.");
+        return;
+    }
+
+    const configError = onlineAuthError();
+    if(configError){
+        alert(configError);
+        return;
+    }
+
+    try{
+        const result = await window.MediPointKioskApi.portalAuth("forgot-password-request", {
+            name,
+            idNumber,
+            email
+        }, {
+            kioskId: window.MEDIPOINT_KIOSK_ID || ""
+        });
+        if(result && result.error){
+            alert(result.error);
+            return;
+        }
+        if(!(result && result.otpSent)){
+            alert("Could not send the verification code.");
+            return;
+        }
+
+        forgotOtpPending = { name, idNumber, email };
+        document.getElementById("forgotIdentityStep").classList.add("hidden");
+        document.getElementById("forgotOtpStep").classList.remove("hidden");
+        const subtitle = document.getElementById("loginSubtitle");
+        if(subtitle) subtitle.textContent = "Enter the email code and choose a new password";
+        alert(result.message || "Verification code sent. Check your email.");
+    }catch(error){
+        alert(Number.isInteger(error && error.status)
+            ? (error.message || "Those account details do not match our records.")
+            : "Could not connect to the online account service. Check the internet connection and try again.");
+    }
+}
+
+async function confirmForgotPasswordOtp(){
+    const pending = forgotOtpPending;
+    if(!pending){
+        showForgotPassword();
+        return;
+    }
+
+    const code = document.getElementById("forgotOtp").value.trim();
+    const newPassword = document.getElementById("forgotNewPassword").value;
+    const confirmPassword = document.getElementById("forgotConfirmPassword").value;
+
+    if(!code){
+        alert("Enter the verification code from your email.");
+        return;
+    }
+    if(newPassword !== confirmPassword){
+        alert("Passwords do not match.");
+        return;
+    }
+    const ruleError = MediPoint.newPasswordError(newPassword, pending.idNumber);
+    if(ruleError){
+        alert(ruleError);
+        return;
+    }
+
+    const configError = onlineAuthError();
+    if(configError){
+        alert(configError);
+        return;
+    }
+
+    try{
+        const result = await window.MediPointKioskApi.portalAuth("forgot-password-confirm", {
+            name: pending.name,
+            idNumber: pending.idNumber,
+            email: pending.email,
+            code,
+            newPassword
+        }, {
+            kioskId: window.MEDIPOINT_KIOSK_ID || ""
+        });
+        if(result && result.error){
+            alert(result.error);
+            return;
+        }
+        if(!(result && result.passwordUpdated && result.user)){
+            alert("Could not reset the password online.");
+            return;
+        }
+
+        forgotOtpPending = null;
+        openSignedInAccount({ ...result.user, mustChangePassword: false });
+    }catch(error){
+        alert(Number.isInteger(error && error.status)
+            ? (error.message || "Could not verify the code.")
+            : "Could not connect to the online account service. Check the internet connection and try again.");
+    }
 }
 
 /* ==========================================================================

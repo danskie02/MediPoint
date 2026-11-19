@@ -48,7 +48,7 @@ body {
     background-size:cover;
     background-position:center;
     background-repeat:no-repeat;
-    overflow:hidden;
+    overflow:auto;
     position:relative;
 }
 
@@ -456,6 +456,27 @@ fieldset {
 
 .message.success {
   color: #15803d;
+}
+
+.field-hint {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.auth-links {
+  margin: 14px 0 0;
+  text-align: center;
+}
+
+.text-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--red);
+  font: 700 13px "Poppins", sans-serif;
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 

@@ -726,6 +726,71 @@ img {
     border-color: #fca5a5;
 }
 
+.caremate-body {
+    min-width: 0;
+    flex: 1;
+}
+
+.caremate-findings {
+    margin-top: 14px;
+}
+
+.caremate-findings h3 {
+    margin-bottom: 8px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    opacity: 0.9;
+}
+
+.caremate-findings ul {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.caremate-finding {
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.55);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.caremate-finding.attention {
+    border-color: rgba(0, 0, 0, 0.1);
+}
+
+.caremate-finding-top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 4px;
+}
+
+.caremate-finding-top strong {
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.caremate-finding-top span {
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    opacity: 0.85;
+}
+
+.caremate-finding p {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.55;
+}
+
 
 /* =========================================================
    PRINT SECTION

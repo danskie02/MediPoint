@@ -323,13 +323,30 @@ function renderPatientDetail(patient) {
     return;
   }
 
+  const caremateFindings = patient.caremate && window.MediPointCareMate
+    ? window.MediPointCareMate.findingsFromCareMate(patient.caremate)
+    : [];
   const recommendation = patient.caremate && patient.caremate.recommendation && window.MediPointCareMate
-    ? window.MediPointCareMate.getRecommendationCopy(patient.caremate.recommendation).summary
+    ? window.MediPointCareMate.analysisSummary(patient.caremate)
     : patient.status === 'Critical'
       ? 'Escalate to clinician review and prepare for immediate follow-up.'
       : patient.status === 'Warning'
         ? 'Continue monitoring and schedule a follow-up check-in.'
         : 'No urgent follow-up required. Routine review is sufficient.';
+  const findingsMarkup = caremateFindings.length
+    ? `<div class="caremate-findings-panel">
+        <h4>What the measurements indicate</h4>
+        <ul>
+          ${caremateFindings.map(finding => `
+            <li class="${finding.attention ? 'attention' : 'normal'}">
+              <strong>${MediPoint.escapeHTML(finding.metric)}</strong>
+              <span>${MediPoint.escapeHTML(finding.categoryLabel)}</span>
+              <p>${MediPoint.escapeHTML(finding.text)}</p>
+            </li>
+          `).join('')}
+        </ul>
+      </div>`
+    : '';
   const followUp = patient.followUp;
   const timeline = MediPoint.buildHealthTimeline(patient.measurements, followUp, true);
   const timelineMarkup = timeline.length ? timeline.map(event => {
@@ -380,6 +397,7 @@ function renderPatientDetail(patient) {
       <p>${MediPoint.escapeHTML(MediPoint.getPublicIdNumber(patient) || 'No ID')} • ${MediPoint.escapeHTML(patient.role || 'Student')} • Last check-in ${MediPoint.escapeHTML(patient.lastCheckin)}</p>
       <p><strong>Clinical status:</strong> ${MediPoint.escapeHTML(patient.status)}</p>
       <p>${MediPoint.escapeHTML(recommendation)}</p>
+      ${findingsMarkup}
     </div>
     <section class="case-timeline" aria-label="Patient health timeline">
       <h3>Health timeline</h3>

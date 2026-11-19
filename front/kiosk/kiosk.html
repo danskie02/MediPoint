@@ -97,6 +97,22 @@
   </div>
 
   <div class="vital-card">
+    <button type="button" class="vital-card-close" aria-label="Close Respiratory Rate card">&times;</button>
+    <div class="card-icon">
+      <img src="../../images/oxygensat.png" alt="Respiratory Rate" />
+    </div>
+
+    <div class="card-divider"></div>
+
+    <div class="card-content">
+      <h2>Respiratory Rate</h2>
+      <hr />
+      <p>Measure your breathing rate<br />(Breaths Per Minute).</p>
+      <button>START <span>›</span></button>
+    </div>
+  </div>
+
+  <div class="vital-card">
     <button type="button" class="vital-card-close" aria-label="Close Body Temperature card">&times;</button>
     <div class="card-icon">
       <img src="../../images/bodytemp.png" alt="Body Temperature" />
@@ -225,6 +241,7 @@
     let pendingWeightMeasurement = null;
     let pendingHeartRateMeasurement = null;
     let pendingSpO2Measurement = null;
+    let pendingRespiratoryRateMeasurement = null;
     let pendingTemperatureMeasurement = null;
 
     async function ensureSerialConnection() {
@@ -367,6 +384,16 @@
                 pendingSpO2Measurement = rawValue;
                 console.info(`[MediPoint] Received oxygen saturation from Arduino: ${rawValue}`);
               }
+            } else if (
+              message.startsWith('RESP_RESULT:') ||
+              message.startsWith('RESPIRATORY_RATE_RESULT:') ||
+              message.startsWith('RR_RESULT:')
+            ) {
+              const rawValue = parseFloat(message.split(':')[1] || '');
+              if (!Number.isNaN(rawValue)) {
+                pendingRespiratoryRateMeasurement = rawValue;
+                console.info(`[MediPoint] Received respiratory rate from Arduino: ${rawValue}`);
+              }
             } else if (message.startsWith('TEMPERATURE_RESULT:') || message.startsWith('TEMP_RESULT:')) {
               const rawValue = parseFloat(message.split(':')[1] || '');
               if (!Number.isNaN(rawValue)) {
@@ -435,6 +462,17 @@
           'Place your finger inside the oximeter.',
           'Keep your hand relaxed and still.',
           'Wait for the oxygen reading to finish.'
+        ]
+      },
+      'Respiratory Rate': {
+        sensor: 'MAX30105 Pulse Oximeter',
+        text: 'Keep your finger steady on the sensor while the kiosk estimates your breathing rate from the pulse signal.',
+        image: '../../images/oxygensat.png',
+        unit: 'breaths/min',
+        steps: [
+          'Place your index finger on the MAX30105 sensor.',
+          'Breathe normally and keep your hand relaxed and still.',
+          'Wait while we measure your respiratory rate.'
         ]
       },
       'Body Temperature': {
@@ -752,6 +790,10 @@
         return data.spo2 >= 95 ? 'Normal' : 'Needs Attention';
       }
 
+      if (title === 'Respiratory Rate') {
+        return data.rpm >= 12 && data.rpm <= 20 ? 'Normal' : 'Needs Attention';
+      }
+
       if (title === 'Body Temperature') {
         return data.celsius >= 36.1 && data.celsius <= 37.2 ? 'Normal' : 'Needs Attention';
       }
@@ -784,6 +826,9 @@
         if (measurement === 'spo2' && pendingSpO2Measurement !== null) {
           return true;
         }
+        if (measurement === 'respiratoryRate' && pendingRespiratoryRateMeasurement !== null) {
+          return true;
+        }
         if (measurement === 'temperature' && pendingTemperatureMeasurement !== null) {
           return true;
         }
@@ -812,6 +857,17 @@
           title,
           value: String(data.spo2),
           unit: '% SpO2',
+          status: getStatus(title, data),
+          note: 'Simulated demo value; this is not a medical-device reading.'
+        };
+      }
+
+      if (title === 'Respiratory Rate') {
+        data = { rpm: randomNumber(12, 18) };
+        return {
+          title,
+          value: String(data.rpm),
+          unit: 'breaths/min',
           status: getStatus(title, data),
           note: 'Simulated demo value; this is not a medical-device reading.'
         };
@@ -878,6 +934,7 @@
               recommendation: prediction.recommendation,
               probabilities: prediction.probabilities || {},
               features: prediction.features || null,
+              interpretations: prediction.interpretations || null,
               generatedAt: new Date().toISOString()
             };
           }
@@ -967,7 +1024,13 @@
         modalStartBtn.dataset.target = title;
         modalStartBtn.dataset.state = 'ready';
         modalStartBtn.textContent = 'START';
-        const usesArduinoSensor = ['Height', 'Weight', 'Oxygen Saturation', 'Body Temperature'].includes(title);
+        const usesArduinoSensor = [
+          'Height',
+          'Weight',
+          'Oxygen Saturation',
+          'Respiratory Rate',
+          'Body Temperature'
+        ].includes(title);
         modalStartBtn.disabled = usesArduinoSensor;
         modal.classList.remove('hidden');
         closeModal.focus();
@@ -1033,6 +1096,7 @@
       let weightAvailable = false;
       let heartRateAvailable = false;
       let spo2Available = false;
+      let respiratoryRateAvailable = false;
       let temperatureAvailable = false;
 
       try {
@@ -1087,37 +1151,41 @@
           result = createMeasurement(title);
           updateModalStatus('Blood pressure monitor unavailable. A clearly labeled demonstration value will be shown.', false);
         }
-      } else if (title === 'Oxygen Saturation') {
-        const alternateCached = title === 'Heart Rate'
+      } else if (title === 'Oxygen Saturation' || title === 'Respiratory Rate') {
+        const waitingForSpO2 = title === 'Oxygen Saturation';
+        const cachedPrimary = waitingForSpO2
           ? pendingSpO2Measurement !== null
-          : pendingHeartRateMeasurement !== null;
+          : pendingRespiratoryRateMeasurement !== null;
 
-        if ((title === 'Heart Rate' && pendingHeartRateMeasurement !== null) ||
-            (title === 'Oxygen Saturation' && pendingSpO2Measurement !== null)) {
-          measurementType = title === 'Heart Rate' ? 'heartRate' : 'spo2';
-          updateModalStatus('Using cached sensor result.');
-        } else if (alternateCached) {
-          measurementType = title === 'Heart Rate' ? 'heartRate' : 'spo2';
-          updateModalStatus('Using paired sensor result from the previous reading.');
+        if (cachedPrimary) {
+          measurementType = waitingForSpO2 ? 'spo2' : 'respiratoryRate';
+          updateModalStatus(
+            waitingForSpO2
+              ? 'Using cached oxygen saturation from the MAX30105 reading.'
+              : 'Using cached respiratory rate from the MAX30105 reading.'
+          );
         } else {
-          if (title === 'Heart Rate') {
-            pendingHeartRateMeasurement = null;
-          } else {
+          if (waitingForSpO2) {
             pendingSpO2Measurement = null;
+          } else {
+            pendingRespiratoryRateMeasurement = null;
           }
 
           updateModalStatus('Activating MAX30105 sensor...');
-          serialOk = await sendSerialCommand('MEASURE_MAX30105', runId);
+          serialOk = await sendSerialCommand(
+            waitingForSpO2 ? 'MEASURE_MAX30105' : 'MEASURE_RESPIRATORY_RATE',
+            runId
+          );
           if (serialOk) {
             updateModalStatus('MAX30105 sensor activated. Please keep your finger steady.');
-            if (title === 'Heart Rate') {
-              heartRateAvailable = await waitForSerialMeasurement('heartRate', 60000, runId);
-              if (runId !== measurementRunId) return;
-              if (heartRateAvailable) measurementType = 'heartRate';
-            } else {
+            if (waitingForSpO2) {
               spo2Available = await waitForSerialMeasurement('spo2', 60000, runId);
               if (runId !== measurementRunId) return;
               if (spo2Available) measurementType = 'spo2';
+            } else {
+              respiratoryRateAvailable = await waitForSerialMeasurement('respiratoryRate', 60000, runId);
+              if (runId !== measurementRunId) return;
+              if (respiratoryRateAvailable) measurementType = 'respiratoryRate';
             }
           } else {
             updateModalStatus('Sensor unavailable. A clearly labeled demonstration value will be shown.', false);
@@ -1203,6 +1271,15 @@
           status: getStatus(title, { spo2 }),
           note: 'Measured from Arduino sensor.'
         };
+      } else if (measurementType === 'respiratoryRate') {
+        const rpm = Number(pendingRespiratoryRateMeasurement.toFixed(0));
+        result = {
+          title,
+          value: String(rpm),
+          unit: 'breaths/min',
+          status: getStatus(title, { rpm }),
+          note: 'Measured from Arduino MAX30105 sensor.'
+        };
       } else if (measurementType === 'temperature') {
         const temperature = Number(pendingTemperatureMeasurement.toFixed(1));
         result = {
@@ -1221,9 +1298,14 @@
       }
 
       if (measurementType === null && serialOk && title !== 'Blood Pressure' && title !== 'Heart Rate') {
-        if (title === 'Height' || title === 'Weight' || title === 'Body Temperature') {
-          updateModalStatus('Sensor did not provide a reading. A clearly labeled demonstration value will be shown.', false);
-        } else if (title === 'Heart Rate' || title === 'Oxygen Saturation') {
+        if (
+          title === 'Height' ||
+          title === 'Weight' ||
+          title === 'Body Temperature' ||
+          title === 'Oxygen Saturation' ||
+          title === 'Respiratory Rate' ||
+          title === 'Heart Rate'
+        ) {
           updateModalStatus('Sensor did not provide a reading. A clearly labeled demonstration value will be shown.', false);
         }
       }

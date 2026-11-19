@@ -88,6 +88,7 @@ Deno.serve(async (request) => {
         recommendation: caremateResult.recommendation,
         probabilities: caremateResult.probabilities || {},
         features: caremateResult.features || null,
+        interpretations: caremateResult.interpretations || null,
         generatedAt: caremateResult.generatedAt || new Date().toISOString(),
       };
     }
