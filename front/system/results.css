@@ -12,11 +12,11 @@
 .results-grid {
   display: grid;
   gap: 14px;
-  max-height: min(60vh, 560px);
-  overflow-y: auto;
+  max-height: none;
+  overflow: visible;
 }
 
-@media (min-width: 1180px) {
+@media (min-width: 900px) {
   .results-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
