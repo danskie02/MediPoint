@@ -12,6 +12,8 @@
 .results-grid {
   display: grid;
   gap: 14px;
+  max-height: min(60vh, 560px);
+  overflow-y: auto;
 }
 
 @media (min-width: 1180px) {

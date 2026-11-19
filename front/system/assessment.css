@@ -224,7 +224,7 @@
 .trend-key { width: 18px; height: 3px; background: var(--brand); }
 
 .reading-history-heading { align-items: center; padding: 17px 20px 14px; border-bottom: 1px solid var(--border); }
-.reading-table-wrap { overflow-x: auto; }
+.reading-table-wrap { max-height: min(70vh, 640px); overflow: auto; }
 .reading-history table { width: 100%; border-collapse: collapse; text-align: left; }
 .reading-history th,.reading-history td { padding: 12px 20px; border-bottom: 1px solid #edf0f2; font-size: 12px; white-space: nowrap; }
 .reading-history th { color: var(--text-muted); font-size: 10px; font-weight: 900; text-transform: uppercase; }

@@ -104,6 +104,8 @@
   margin: 12px 0 0;
   padding: 0;
   list-style: none;
+  max-height: min(60vh, 560px);
+  overflow-y: auto;
 }
 
 .assessment-panel .measurement-finding {
@@ -157,6 +159,8 @@
   margin: 14px 0 0;
   padding: 0;
   list-style: none;
+  max-height: min(60vh, 560px);
+  overflow-y: auto;
 }
 
 .assessment-panel .recommendations li {

@@ -115,6 +115,7 @@
    ========================================================= */
 
 .table-wrap {
+  max-height: min(70vh, 640px);
   overflow: auto;
 }
 
@@ -238,6 +239,8 @@
 .user-result-list {
   display: grid;
   gap: 8px;
+  max-height: min(60vh, 560px);
+  overflow-y: auto;
 }
 
 .user-result-row {
