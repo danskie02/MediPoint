@@ -60,6 +60,7 @@ long irValue = 0, redValue = 0;
 const long FINGER_THRESHOLD = 50000;
 
 bool maxMeasurementRequested = false;
+bool maxMeasurementRequiresResp = false;
 
 unsigned long lastMaxPoll = 0;
 const unsigned long MAX_POLL_INTERVAL = 20;
@@ -107,6 +108,8 @@ float medianFilter(float values[], int size) {
 
   return temp[size / 2];
 }
+
+void emitSystemReady();
 
 void resetMaxMeasurementState() {
 
@@ -212,7 +215,7 @@ void emitMax30105Results() {
   }
 }
 
-void startMax30105Measurement() {
+void startMax30105Measurement(bool requireResp) {
 
   if (!max30105SensorReady) {
 
@@ -237,6 +240,7 @@ void startMax30105Measurement() {
   resetMaxMeasurementState();
 
   maxMeasurementRequested = true;
+  maxMeasurementRequiresResp = requireResp;
 
   maxMeasurementStartTime = millis();
 }
@@ -477,11 +481,15 @@ void handleCommand(const char* command) {
 
   // ==================== MAX30105 HEART RATE, SPO2, RESPIRATORY RATE ====================
 
-  else if (strcmp(command, "MEASURE_MAX30105") == 0 ||
-           strcmp(command, "MEASURE_RESPIRATORY_RATE") == 0 ||
+  else if (strcmp(command, "MEASURE_MAX30105") == 0) {
+
+    startMax30105Measurement(false);
+  }
+
+  else if (strcmp(command, "MEASURE_RESPIRATORY_RATE") == 0 ||
            strcmp(command, "MEASURE_RESP") == 0) {
 
-    startMax30105Measurement();
+    startMax30105Measurement(true);
   }
 
   // ==================== WEIGHT ====================
@@ -542,11 +550,23 @@ void handleCommand(const char* command) {
     }
   }
 
-  // ==================== REFRESH ====================
+  // ==================== READY / STATUS / PING ====================
+  // Kiosk may miss boot-time "System ready" (Web Serial open often resets
+  // the board, or the message arrives before the reader is attached).
 
-  else if (strcmp(command, "REFRESH") == 0) {
+  else if (strcmp(command, "REFRESH") == 0 ||
+           strcmp(command, "STATUS") == 0 ||
+           strcmp(command, "PING") == 0) {
+
+    if (maxMeasurementRequested) {
+      maxMeasurementRequested = false;
+      maxMeasurementRequiresResp = false;
+      resetMaxMeasurementState();
+      Serial.println("STATUS:MAX30105 measurement cancelled");
+    }
 
     Serial.println("STATUS:Refresh acknowledged");
+    emitSystemReady();
   }
 
   else {
@@ -555,12 +575,31 @@ void handleCommand(const char* command) {
   }
 }
 
+void emitSystemReady() {
+  // Always advertise readiness so the kiosk can talk to us.
+  // Per-command paths already retry sensors that failed at boot.
+  Serial.println("STATUS:System ready");
+
+  Serial.print("STATUS:Sensors temp=");
+  Serial.print(temperatureSensorReady ? "ok" : "fail");
+  Serial.print(" height=");
+  Serial.print(heightSensorReady ? "ok" : "fail");
+  Serial.print(" max30105=");
+  Serial.print(max30105SensorReady ? "ok" : "fail");
+  Serial.print(" weight=");
+  Serial.println(weightSensorReady ? "ok" : "fail");
+}
+
 // ==================== SETUP ====================
 
 void setup() {
 
   // USB serial communication with MediPoint
   Serial.begin(9600);
+
+  // Give the USB CDC / host a moment after Web Serial open (which often
+  // resets the Mega) so the first STATUS lines are not lost.
+  delay(300);
 
   // TF-Luna hardware UART communication
   Serial1.begin(9600);
@@ -595,42 +634,35 @@ void setup() {
     Serial.println("ERROR:MAX30105 initialization failed");
   }
 
-  // 4. Initialize Weight Sensor
+  // 4. Initialize Weight Sensor — keep this short.
+  // A long tare delay here races the kiosk's ready timeout (Web Serial
+  // open resets the board, so setup starts when the browser connects).
   scale.begin(DT_PIN, SCK_PIN);
 
-  delay(500);
+  delay(200);
 
   if (scale.is_ready()) {
 
     scale.set_scale(calibrationFactor);
-
-    Serial.println(
-      "STATUS:Keep the platform empty. Taring scale in 5 seconds..."
-    );
-
-    delay(5000);
-
-    scale.tare(30);
-
+    scale.tare(10);
     weightSensorReady = true;
+    Serial.println("STATUS:Scale tared");
   }
   else {
 
     Serial.println("ERROR:HX711 initialization failed");
   }
 
-  // Final sensor readiness check
-  if (temperatureSensorReady &&
-      heightSensorReady &&
-      max30105SensorReady &&
-      weightSensorReady) {
-
-    Serial.println("STATUS:System ready");
-  }
-  else {
-
+  if (!temperatureSensorReady ||
+      !heightSensorReady ||
+      !max30105SensorReady ||
+      !weightSensorReady) {
     Serial.println("ERROR:One or more sensors failed initialization");
   }
+
+  // Always emit System ready so the kiosk handshake can complete.
+  // Failed sensors are retried when their MEASURE_* command arrives.
+  emitSystemReady();
 }
 
 // ==================== LOOP ====================
@@ -683,7 +715,25 @@ void loop() {
   // Background MAX30105 sampling (HR, SpO2, and respiratory rate)
   if (maxMeasurementRequested) {
 
-    if (now - maxMeasurementStartTime > MAX_MEASUREMENT_DURATION) {
+    unsigned long maxElapsed = now - maxMeasurementStartTime;
+
+    if (maxElapsed > MAX_MEASUREMENT_DURATION) {
+
+      emitMax30105Results();
+
+      maxMeasurementRequested = false;
+
+      return;
+    }
+
+    // Finish early once we have stable vitals so the kiosk is not
+    // forced to wait the full 40s every time.
+    bool hasStableHrSpo2 =
+      avgBpm > 0 && spO2 > 0 && validBeats >= RATE_SIZE;
+    bool hasResp = avgRespRate > 0;
+
+    if (maxElapsed >= 12000UL && hasStableHrSpo2 &&
+        (!maxMeasurementRequiresResp || hasResp)) {
 
       emitMax30105Results();
 

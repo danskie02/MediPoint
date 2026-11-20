@@ -226,7 +226,10 @@
     let measurementRunId = 0;
     let measurementAbortController = null;
     const SERIAL_BAUD_RATE = 9600;
-    const SERIAL_READY_TIMEOUT_MS = 5000;
+    // Web Serial open typically resets the Mega; allow time for sensor init
+    // plus a STATUS probe if the boot-time "System ready" line was missed.
+    const SERIAL_READY_TIMEOUT_MS = 15000;
+    const SERIAL_READY_PROBE_DELAY_MS = 1200;
     const MIN_MEASURING_MS = 2000;
     let vitalAnimFrame = 0;
     let vitalAnimRunning = false;
@@ -276,6 +279,10 @@
           listenForSerialMessages();
         }
 
+        // If the boot "System ready" was missed (reader not yet attached, or
+        // partial sensor ERROR path on older firmware), ask again.
+        scheduleSerialReadyProbe();
+
         return true;
       } catch (error) {
         console.error('Unable to open serial port:', error);
@@ -298,6 +305,32 @@
         console.error('Serial write failed:', error);
         return false;
       }
+    }
+
+    function markSerialReady() {
+      if (serialReady) {
+        return;
+      }
+      serialReady = true;
+      if (resolveSerialReady) {
+        resolveSerialReady(true);
+        resolveSerialReady = null;
+      }
+      console.info('[MediPoint] Arduino is ready to receive commands.');
+    }
+
+    function scheduleSerialReadyProbe() {
+      window.setTimeout(() => {
+        if (serialReady || !serialWriter) {
+          return;
+        }
+        const encoder = new TextEncoder();
+        serialWriter.write(encoder.encode('STATUS\n')).then(() => {
+          console.info('[MediPoint] Sent STATUS probe while waiting for Arduino readiness.');
+        }).catch(error => {
+          console.warn('[MediPoint] STATUS probe failed:', error);
+        });
+      }, SERIAL_READY_PROBE_DELAY_MS);
     }
 
     async function ensureSerialReady() {
@@ -354,12 +387,7 @@
             console.log(`[Arduino] ${message}`);
 
             if (/^STATUS:\s*System ready$/i.test(message)) {
-              serialReady = true;
-              if (resolveSerialReady) {
-                resolveSerialReady(true);
-                resolveSerialReady = null;
-              }
-              console.info('[MediPoint] Arduino is ready to receive commands.');
+              markSerialReady();
             } else if (message.startsWith('HEIGHT_RESULT:')) {
               const rawValue = parseFloat(message.split(':')[1] || '');
               if (!Number.isNaN(rawValue)) {
