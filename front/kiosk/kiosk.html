@@ -32,23 +32,9 @@
 
     <section class="vital-grid">
 
-  <div class="vital-card">
-      <button type="button" class="vital-card-close" aria-label="Close Height card">&times;</button>
-    <div class="card-icon">
-      <img src="../../images/abouticon.png" alt="Height" />
-    </div>
+  <!-- Desktop: left→right, top→bottom. DOM order keeps the same sequence on smaller breakpoints. -->
 
-    <div class="card-divider"></div>
-
-    <div class="card-content">
-      <h2>Height</h2>
-      <hr />
-      <p>Measure your standing height.</p>
-      <button type="button" data-target="Height">START <span>›</span></button>
-    </div>
-  </div>
-
-  <div class="vital-card">
+  <div class="vital-card" data-grid-slot="1">
     <button type="button" class="vital-card-close" aria-label="Close Weight card">&times;</button>
     <div class="card-icon">
       <img src="../../images/abouticon.png" alt="Weight" />
@@ -64,23 +50,23 @@
     </div>
   </div>
 
-  <div class="vital-card" id="heartRateCard">
-    <button type="button" class="vital-card-close" aria-label="Close Heart Rate card">&times;</button>
+  <div class="vital-card" data-grid-slot="2">
+    <button type="button" class="vital-card-close" aria-label="Close Height card">&times;</button>
     <div class="card-icon">
-      <img src="../../images/heartrate.png" alt="Heart Rate" />
+      <img src="../../images/abouticon.png" alt="Height" />
     </div>
 
     <div class="card-divider"></div>
 
     <div class="card-content">
-      <h2>Heart Rate</h2>
+      <h2>Height</h2>
       <hr />
-      <p>Pulse is measured with your blood pressure<br />(Beats Per Minute).</p>
-      <button type="button" data-target="Heart Rate">START <span>›</span></button>
+      <p>Measure your standing height.</p>
+      <button type="button" data-target="Height">START <span>›</span></button>
     </div>
   </div>
 
-  <div class="vital-card">
+  <div class="vital-card" data-grid-slot="3">
     <button type="button" class="vital-card-close" aria-label="Close Oxygen Saturation card">&times;</button>
     <div class="card-icon">
       <img src="../../images/oxygensat.png" alt="Oxygen Saturation" />
@@ -96,7 +82,7 @@
     </div>
   </div>
 
-  <div class="vital-card">
+  <div class="vital-card" data-grid-slot="4">
     <button type="button" class="vital-card-close" aria-label="Close Respiratory Rate card">&times;</button>
     <div class="card-icon">
       <img src="../../images/oxygensat.png" alt="Respiratory Rate" />
@@ -112,7 +98,7 @@
     </div>
   </div>
 
-  <div class="vital-card">
+  <div class="vital-card" data-grid-slot="5">
     <button type="button" class="vital-card-close" aria-label="Close Body Temperature card">&times;</button>
     <div class="card-icon">
       <img src="../../images/bodytemp.png" alt="Body Temperature" />
@@ -128,7 +114,7 @@
     </div>
   </div>
 
-  <div class="vital-card">
+  <div class="vital-card" data-grid-slot="6">
     <button type="button" class="vital-card-close" aria-label="Close Blood Pressure card">&times;</button>
     <div class="card-icon">
       <img src="../../images/bp.png" alt="Blood Pressure" />
@@ -141,6 +127,22 @@
       <hr />
       <p>Measure your blood pressure<br />(Systolic / Diastolic).</p>
       <button>START <span>›</span></button>
+    </div>
+  </div>
+
+  <div class="vital-card" id="heartRateCard" data-grid-slot="7">
+    <button type="button" class="vital-card-close" aria-label="Close Heart Rate card">&times;</button>
+    <div class="card-icon">
+      <img src="../../images/heartrate.png" alt="Heart Rate" />
+    </div>
+
+    <div class="card-divider"></div>
+
+    <div class="card-content">
+      <h2>Heart Rate</h2>
+      <hr />
+      <p>Pulse is measured with your blood pressure<br />(Beats Per Minute).</p>
+      <button type="button" data-target="Heart Rate">START <span>›</span></button>
     </div>
   </div>
 

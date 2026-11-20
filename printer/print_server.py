@@ -49,7 +49,7 @@ def make_receipt(data):
             return "HR"
         if "respiratory" in title_text:
             return "RR"
-        if "oxygen" in title_text:
+        if "oxygen" in title_text or "spo2" in title_text:
             return "SpO2"
         if "temperature" in title_text:
             return "Temp"
@@ -59,7 +59,111 @@ def make_receipt(data):
             return "Weight"
         if "bmi" in title_text:
             return "BMI"
-        return title[:6].strip() or "Vitals"
+        return (title or "Vitals")[:6].strip() or "Vitals"
+
+    def normalize_unit(unit):
+        unit_text = str(unit or "").strip()
+        lowered = unit_text.lower().replace("°", "")
+        if lowered in {"c", "deg c", "degc", "celsius"}:
+            return "deg C"
+        if lowered in {"f", "deg f", "degf", "fahrenheit"}:
+            return "deg F"
+        return unit_text.replace("°", "deg ")
+
+    def parse_number(value):
+        text = str(value or "").strip()
+        if not text:
+            return None
+        try:
+            return float(text.replace(",", ""))
+        except ValueError:
+            digits = "".join(
+                ch if ch.isdigit() or ch in ".-" else " "
+                for ch in text
+            ).split()
+            if not digits:
+                return None
+            try:
+                return float(digits[0])
+            except ValueError:
+                return None
+
+    def parse_blood_pressure(value):
+        text = str(value or "")
+        parts = [part for part in text.replace(" ", "").split("/") if part]
+        if len(parts) < 2:
+            return None, None
+        return parse_number(parts[0]), parse_number(parts[1])
+
+    def derive_indication(title, value, status):
+        title_text = str(title or "").lower()
+        status_text = str(status or "").strip() or "Recorded"
+
+        if "blood pressure" in title_text:
+            systolic, diastolic = parse_blood_pressure(value)
+            if systolic is None or diastolic is None:
+                return status_text if status_text == "Normal" else "Check BP"
+            if systolic > 180 or diastolic > 120:
+                return "Hypertensive Crisis"
+            if systolic >= 140 or diastolic >= 90:
+                return "Hypertension Stage 2"
+            if systolic >= 130 or diastolic >= 80:
+                return "Hypertension Stage 1"
+            if systolic < 90 or diastolic < 60:
+                return "Low Blood Pressure"
+            return "Normal"
+
+        number = parse_number(value)
+        if number is None:
+            if "height" in title_text or "weight" in title_text:
+                return "Recorded"
+            return status_text if status_text == "Normal" else "Review"
+
+        if "temperature" in title_text:
+            if number < 35:
+                return "Hypothermia"
+            if number < 37.5:
+                return "Normal"
+            if number <= 38.0:
+                return "Low-Grade Fever"
+            if number <= 39.0:
+                return "Fever"
+            return "High Fever"
+
+        if "heart rate" in title_text or "pulse" in title_text:
+            if number < 60:
+                return "Bradycardia"
+            if number > 100:
+                return "Tachycardia"
+            return "Normal"
+
+        if "oxygen" in title_text or "spo2" in title_text:
+            if number < 90:
+                return "Severe Hypoxemia"
+            if number < 95:
+                return "Hypoxemia"
+            return "Normal"
+
+        if "respiratory" in title_text or "respiration" in title_text:
+            if number < 12:
+                return "Bradypnea"
+            if number > 20:
+                return "Tachypnea"
+            return "Normal"
+
+        if title_text.strip() == "bmi" or "bmi" in title_text:
+            if number < 18.5:
+                return "Underweight"
+            if number <= 24.9:
+                return "Normal Weight"
+            if number <= 29.9:
+                return "Overweight"
+            return "Obese"
+
+        if "height" in title_text or "weight" in title_text:
+            return "Recorded"
+
+        return status_text if status_text == "Normal" else "Review"
 
     out = bytearray()
 
@@ -92,19 +196,25 @@ def make_receipt(data):
     for item in data.get("results", []):
         title = str(item.get("title", "Measurement")).strip() or "Measurement"
         value = str(item.get("value", "")).strip()
-        unit = str(item.get("unit", "")).strip()
+        unit = normalize_unit(item.get("unit", ""))
         status = str(item.get("status", "Recorded")).strip() or "Recorded"
+        indication = str(item.get("indication", "")).strip()
 
         reading = value
         if unit:
             reading = f"{reading} {unit}" if reading else unit
-
         if not reading:
             reading = "Recorded"
 
+        if not indication:
+            indication = derive_indication(title, value, status)
+
         label = compact_label(title)
-        line = f"{label:<8}{reading:<18}{status:>10}\n"
-        out += escpos_text(line)
+        # Row 1: vital label + reading
+        # Row 2: status + clinical indication
+        out += escpos_text(f"{label:<8}{reading}\n")
+        out += escpos_text(f"{status}   {indication}\n")
+        out += b"\n"
 
     out += b"--------------------------------\n"
     out += escpos_text(

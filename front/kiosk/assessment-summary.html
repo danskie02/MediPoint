@@ -1262,14 +1262,43 @@ async function printAssessment(event) {
         return;
     }
 
+    const caremateFindings = (function () {
+        if (!window.MediPointCareMate || !assessment) {
+            return [];
+        }
+        const carematePayload =
+            window.MediPointCareMate.extractCareMateFromAssessment({
+                caremate: assessment.caremate,
+                results: assessment.results
+            });
+        return carematePayload
+            ? window.MediPointCareMate.findingsFromCareMate(carematePayload)
+            : [];
+    })();
+
+    function findingIndicationForTitle(title) {
+        const normalized = normalizeTitle(title);
+        const match = caremateFindings.find(function (finding) {
+            return normalizeTitle(finding.metric) === normalized;
+        });
+        return match
+            ? String(match.categoryLabel || match.category || "").trim()
+            : "";
+    }
+
     // Read the actual values displayed on the summary page.
     const results = Array.from(
         resultsGrid.querySelectorAll(".result-tile")
     ).map(function (tile) {
+        const title =
+            tile.querySelector(".result-title-row h3")
+                ?.textContent.trim() || "Measurement";
+        const status =
+            tile.querySelector(".result-status")
+                ?.textContent.trim() || "Recorded";
+
         return {
-            title:
-                tile.querySelector(".result-title-row h3")
-                    ?.textContent.trim() || "Measurement",
+            title: title,
 
             value:
                 tile.querySelector(".result-reading strong")
@@ -1279,9 +1308,9 @@ async function printAssessment(event) {
                 tile.querySelector(".result-reading span")
                     ?.textContent.trim() || "",
 
-            status:
-                tile.querySelector(".result-status")
-                    ?.textContent.trim() || "Recorded",
+            status: status,
+
+            indication: findingIndicationForTitle(title),
 
             note:
                 tile.querySelector("p")
@@ -1289,10 +1318,37 @@ async function printAssessment(event) {
         };
     });
 
+    const overallStatus = results.some(function (result) {
+        return resultNeedsAttention(result);
+    })
+        ? "Needs Attention"
+        : "Normal";
+
+    const caremateRecommendationLabel = (function () {
+        if (!window.MediPointCareMate || !assessment) {
+            return "";
+        }
+        const carematePayload =
+            window.MediPointCareMate.extractCareMateFromAssessment({
+                caremate: assessment.caremate,
+                results: assessment.results
+            });
+        if (!carematePayload || !carematePayload.recommendation) {
+            return "";
+        }
+        return window.MediPointCareMate.getRecommendationCopy(
+            carematePayload.recommendation
+        ).label;
+    })();
+
     const payload = {
         name: patientName.textContent.trim(),
         program: patientProgram.textContent.trim(),
         measuredAt: measuredAt.textContent.trim(),
+        overallStatus: overallStatus,
+        recommendation:
+            caremateRecommendationLabel ||
+            "Maintain Healthy Lifestyle",
         results: results
     };
 

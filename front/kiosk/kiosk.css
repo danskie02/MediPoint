@@ -256,9 +256,19 @@ img {
 .vital-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: repeat(3, auto);
 
     gap: 22px;
 }
+
+/* Desktop 3-col: fill left→right, top→bottom */
+.vital-card[data-grid-slot="1"] { grid-row: 1; grid-column: 1; } /* Weight */
+.vital-card[data-grid-slot="2"] { grid-row: 1; grid-column: 2; } /* Height */
+.vital-card[data-grid-slot="3"] { grid-row: 1; grid-column: 3; } /* Oxygen Saturation */
+.vital-card[data-grid-slot="4"] { grid-row: 2; grid-column: 1; } /* Respiratory Rate */
+.vital-card[data-grid-slot="5"] { grid-row: 2; grid-column: 2; } /* Body Temperature */
+.vital-card[data-grid-slot="6"] { grid-row: 2; grid-column: 3; } /* Blood Pressure */
+.vital-card[data-grid-slot="7"] { grid-row: 3; grid-column: 1; } /* Heart Rate */
 
 
 /* =========================================================
@@ -968,6 +978,12 @@ footer {
 @media (max-width: 1180px) {
     .vital-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-rows: none;
+    }
+
+    .vital-card[data-grid-slot] {
+        grid-row: auto;
+        grid-column: auto;
     }
 }
 
